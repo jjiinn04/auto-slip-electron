@@ -1,0 +1,39 @@
+import { contextBridge, ipcRenderer } from 'electron';
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  selectFolder: () => ipcRenderer.invoke('dialog:selectFolder'),
+  selectExcelFile: () => ipcRenderer.invoke('dialog:selectExcelFile'),
+
+  getSettings: () => ipcRenderer.invoke('settings:get'),
+  setSettings: (data: Record<string, unknown>) => ipcRenderer.invoke('settings:set', data),
+
+  scanFolder: (folderPath: string) => ipcRenderer.invoke('folder:scan', folderPath),
+  processFiles: (invoiceFolder: string, approvalFolder: string, month: string) =>
+    ipcRenderer.invoke('files:process', invoiceFolder, approvalFolder, month),
+
+  getInvoices: (month: string) => ipcRenderer.invoke('invoices:list', month),
+  getInvoice: (id: number) => ipcRenderer.invoke('invoices:get', id),
+  deleteInvoice: (id: number) => ipcRenderer.invoke('invoices:delete', id),
+  matchInvoice: (invoiceId: number, approvalId: number) => ipcRenderer.invoke('invoices:match', invoiceId, approvalId),
+  unmatchInvoice: (approvalId: number) => ipcRenderer.invoke('invoices:unmatch', approvalId),
+  getUnmatchedApprovals: (month: string, classification?: string) => ipcRenderer.invoke('approvals:unmatched', month, classification),
+  openFile: (filePath: string) => ipcRenderer.invoke('file:open', filePath),
+  showInFolder: (filePath: string) => ipcRenderer.invoke('file:showInFolder', filePath),
+  getApprovals: (month: string) => ipcRenderer.invoke('approvals:list', month),
+  getMatched: (month: string) => ipcRenderer.invoke('matched:list', month),
+  getSummary: (month: string) => ipcRenderer.invoke('summary:get', month),
+  getCostItems: () => ipcRenderer.invoke('costItems:list'),
+  saveCostItem: (item: any) => ipcRenderer.invoke('costItems:save', item),
+  deleteCostItem: (id: number) => ipcRenderer.invoke('costItems:delete', id),
+  autoDetectCostItems: () => ipcRenderer.invoke('costItems:autoDetect'),
+  importCostItemsFromExcel: (filePath: string) => ipcRenderer.invoke('costItems:importFromExcel', filePath),
+  getMonthlyCostData: (baseYear: number) => ipcRenderer.invoke('monthlyCost:data', baseYear),
+
+  exportExcel: (month: string, type: string) => ipcRenderer.invoke('export:excel', month, type),
+
+  onProcessingProgress: (callback: (progress: { step: string; current: number; total: number }) => void) => {
+    const handler = (_event: unknown, progress: { step: string; current: number; total: number }) => callback(progress);
+    ipcRenderer.on('processing:progress', handler);
+    return () => ipcRenderer.removeListener('processing:progress', handler);
+  },
+});

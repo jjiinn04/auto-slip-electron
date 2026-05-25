@@ -1,0 +1,11 @@
+node_modules/
+dist/
+dist-electron/
+*.db
+.DS_Store
+.claude/
+.env*
+*.dmg
+*.exe
+builder-debug.yml
+scripts/
