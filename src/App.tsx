@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
+import { HashRouter, Routes, Route, NavLink } from 'react-router-dom';
 import { FolderOpen, FileSpreadsheet, FileCheck, Settings, LayoutDashboard, Monitor } from 'lucide-react';
 import { HomePage } from './pages/HomePage';
 import { InvoicesPage } from './pages/InvoicesPage';
@@ -18,7 +18,7 @@ const navItems = [
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <div className="flex h-screen bg-gray-50">
         <nav className="w-56 bg-white border-r border-gray-200 flex flex-col pt-8">
           <div className="px-5 mb-8">
@@ -57,6 +57,6 @@ export default function App() {
           </Routes>
         </main>
       </div>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
