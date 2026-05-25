@@ -15,12 +15,6 @@ export function setupDatabase(): Database.Database {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
 
-  // Migrations for existing databases
-  const colCheck = db.prepare("SELECT COUNT(*) as cnt FROM pragma_table_info('cost_items') WHERE name = 'billing_cycle'").get() as any;
-  if (colCheck.cnt === 0) {
-    db.exec("ALTER TABLE cost_items ADD COLUMN billing_cycle TEXT NOT NULL DEFAULT 'monthly'");
-  }
-
   db.exec(`
     CREATE TABLE IF NOT EXISTS tax_invoices (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -96,6 +90,12 @@ export function setupDatabase(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_cost_items_sort ON cost_items(sort_order);
     CREATE INDEX IF NOT EXISTS idx_cost_amounts_item ON cost_item_amounts(cost_item_id, year);
   `);
+
+  // Migrations for existing databases (must run AFTER table creation)
+  const colCheck = db.prepare("SELECT COUNT(*) as cnt FROM pragma_table_info('cost_items') WHERE name = 'billing_cycle'").get() as any;
+  if (colCheck.cnt === 0) {
+    db.exec("ALTER TABLE cost_items ADD COLUMN billing_cycle TEXT NOT NULL DEFAULT 'monthly'");
+  }
 
   return db;
 }
