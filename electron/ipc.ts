@@ -405,39 +405,68 @@ export function registerIpcHandlers(
       return s === 'null' ? '' : s;
     }
 
+    // Col layout: B=순번, C=품명, D=비용주기, E=계약시작, F=계약종료일, G=거래처, H=비고, I=년도, J-U=1~12월
     const existing = db.prepare('SELECT id, display_name FROM cost_items').all() as any[];
     const existingMap = new Map(existing.map((e: any) => [e.display_name.trim(), e.id]));
     let order = (db.prepare('SELECT MAX(sort_order) as m FROM cost_items').get() as any)?.m || 0;
 
     interface ParsedRow {
       name: string;
-      period: string;
+      billingCycle: string;
+      contractStart: string;
+      contractEnd: string;
       supplier: string;
       year: number;
       months: Record<number, number>;
     }
     const rows: ParsedRow[] = [];
 
+    let lastName = '';
+    let lastCycle = '';
+    let lastStart = '';
+    let lastEnd = '';
+    let lastSupplier = '';
     for (let r = 4; r <= ws.rowCount; r++) {
       const row = ws.getRow(r);
-      const name = readCellText(row.getCell(3));
-      if (!name || name === '내역' || name.includes('월별 비용 총합')) continue;
+      const name = readCellText(row.getCell(3));  // C: 품명
+      if (name && (name === '내역' || name.includes('월별 비용 총합'))) continue;
 
-      const yearStr = readCellText(row.getCell(6));
+      const yearStr = readCellText(row.getCell(9)); // I: 년도
       const yearMatch = yearStr.match(/(\d+)년/);
       if (!yearMatch) continue;
       const year = parseInt(yearMatch[1]) + (parseInt(yearMatch[1]) < 100 ? 2000 : 0);
 
-      const period = readCellText(row.getCell(4));
-      const supplier = readCellText(row.getCell(5));
+      const currentName = name || lastName;
+      if (!currentName) continue;
+
+      const cycle = readCellText(row.getCell(4));       // D: 비용주기
+      const contractStart = readCellText(row.getCell(5)); // E: 계약시작
+      const contractEnd = readCellText(row.getCell(6));   // F: 계약종료일
+      const supplier = readCellText(row.getCell(7));      // G: 거래처
+
+      if (name) {
+        lastName = name;
+        lastCycle = cycle;
+        lastStart = contractStart;
+        lastEnd = contractEnd;
+        lastSupplier = supplier;
+      }
 
       const months: Record<number, number> = {};
       for (let m = 1; m <= 12; m++) {
-        const v = row.getCell(m + 6).value;
+        const v = row.getCell(m + 9).value; // J(10)~U(21): 1~12월
         if (typeof v === 'number' && v > 0) months[m] = Math.round(v);
       }
 
-      rows.push({ name, period, supplier, year, months });
+      rows.push({
+        name: currentName,
+        billingCycle: cycle || lastCycle,
+        contractStart: contractStart || lastStart,
+        contractEnd: contractEnd || lastEnd,
+        supplier: supplier || lastSupplier,
+        year,
+        months,
+      });
     }
 
     let added = 0;
@@ -453,19 +482,22 @@ export function registerIpcHandlers(
     const seenNames = new Set<string>();
     for (const row of rows) {
       let itemId = existingMap.get(row.name);
+      const period = [row.contractStart, row.contractEnd].filter(Boolean).join(' ~ ');
+      const billingCycle = row.billingCycle.includes('년') ? 'yearly' : 'monthly';
 
       if (!itemId && !seenNames.has(row.name)) {
         order++;
-        const r = db.prepare('INSERT INTO cost_items (display_name, contract_period, supplier, match_keyword, sort_order) VALUES (?,?,?,?,?)')
-          .run(row.name, row.period, row.supplier, row.name, order);
+        const r = db.prepare(
+          'INSERT INTO cost_items (display_name, contract_period, supplier, match_keyword, billing_cycle, sort_order) VALUES (?,?,?,?,?,?)'
+        ).run(row.name, period, row.supplier, row.name, billingCycle, order);
         itemId = r.lastInsertRowid as number;
         existingMap.set(row.name, itemId);
         added++;
       } else if (!itemId) {
         itemId = existingMap.get(row.name);
-      } else if (seenNames.has(row.name)) {
-        // already counted
-      } else {
+      } else if (!seenNames.has(row.name)) {
+        db.prepare('UPDATE cost_items SET contract_period = ?, supplier = ?, billing_cycle = ? WHERE id = ?')
+          .run(period, row.supplier, billingCycle, itemId);
         skipped++;
       }
       seenNames.add(row.name);

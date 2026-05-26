@@ -133,7 +133,7 @@ export async function generateMonthlyCostExcel(
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('IT시스템 월별비용');
 
-  const years = [baseYear, baseYear - 1];
+  const years = [baseYear, baseYear - 1, baseYear - 2];
   const shortYears = years.map(y => String(y).slice(2));
 
   // Column widths
@@ -187,13 +187,15 @@ export async function generateMonthlyCostExcel(
   const yearFills: Record<number, ExcelJS.Fill> = {
     0: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } },
     1: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } },
+    2: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } },
   };
+  const yearCount = years.length;
 
   for (let idx = 0; idx < items.length; idx++) {
     const item = items[idx];
     const startRow = rowNum;
 
-    for (let yi = 0; yi < 2; yi++) {
+    for (let yi = 0; yi < yearCount; yi++) {
       const year = years[yi];
       const yd = item.yearData[year] || { total: 0, months: {} };
       const row = ws.getRow(rowNum);
@@ -225,7 +227,7 @@ export async function generateMonthlyCostExcel(
       // Style
       for (let c = 1; c <= 18; c++) {
         const cell = row.getCell(c);
-        cell.fill = yearFills[yi];
+        cell.fill = yearFills[yi] || yearFills[1];
         cell.border = allBorders;
         cell.font = { ...cell.font, size: 9 };
         if (c >= 6) {
@@ -241,11 +243,12 @@ export async function generateMonthlyCostExcel(
     }
 
     // Merge cells for this item (순번, 내역, 계약기간, 거래처)
-    if (startRow + 1 > startRow) {
-      ws.mergeCells(startRow, 1, startRow + 1, 1);
-      ws.mergeCells(startRow, 2, startRow + 1, 2);
-      ws.mergeCells(startRow, 3, startRow + 1, 3);
-      ws.mergeCells(startRow, 4, startRow + 1, 4);
+    const endRow = startRow + yearCount - 1;
+    if (endRow > startRow) {
+      ws.mergeCells(startRow, 1, endRow, 1);
+      ws.mergeCells(startRow, 2, endRow, 2);
+      ws.mergeCells(startRow, 3, endRow, 3);
+      ws.mergeCells(startRow, 4, endRow, 4);
     }
 
     // Center the merged cells
@@ -259,9 +262,10 @@ export async function generateMonthlyCostExcel(
   const totalFills: ExcelJS.Fill[] = [
     { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDBEAFE' } },
     { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } },
+    { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFECF0F1' } },
   ];
   const totalStartRow = rowNum;
-  for (let yi = 0; yi < 2; yi++) {
+  for (let yi = 0; yi < yearCount; yi++) {
     const year = years[yi];
     const row = ws.getRow(rowNum);
     row.height = 20;
@@ -287,17 +291,18 @@ export async function generateMonthlyCostExcel(
     }
     for (let c = 1; c <= 18; c++) {
       const cell = row.getCell(c);
-      cell.fill = totalFills[yi];
+      cell.fill = totalFills[yi] || totalFills[1];
       cell.font = { bold: true, size: 9 };
       cell.border = allBorders;
       cell.alignment = c >= 6 ? { horizontal: 'right', vertical: 'middle' } : c === 5 ? { horizontal: 'center', vertical: 'middle' } : { horizontal: 'center', vertical: 'middle' };
     }
     rowNum++;
   }
-  ws.mergeCells(totalStartRow, 1, totalStartRow + 1, 1);
-  ws.mergeCells(totalStartRow, 2, totalStartRow + 1, 2);
-  ws.mergeCells(totalStartRow, 3, totalStartRow + 1, 3);
-  ws.mergeCells(totalStartRow, 4, totalStartRow + 1, 4);
+  const totalEndRow = totalStartRow + yearCount - 1;
+  ws.mergeCells(totalStartRow, 1, totalEndRow, 1);
+  ws.mergeCells(totalStartRow, 2, totalEndRow, 2);
+  ws.mergeCells(totalStartRow, 3, totalEndRow, 3);
+  ws.mergeCells(totalStartRow, 4, totalEndRow, 4);
 
   const desktopPath = app.getPath('desktop');
   const filePath = path.join(desktopPath, `autoslip_${baseYear}_monthly-cost.xlsx`);

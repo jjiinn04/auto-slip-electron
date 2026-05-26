@@ -4,7 +4,7 @@ import { useAppStore } from '../stores/useAppStore';
 import { formatAmount } from '../lib/format';
 import {
   FileText, ChevronDown, ChevronRight, Trash2, Link, Unlink,
-  ExternalLink, FolderOpen, Paperclip, FileSpreadsheet,
+  ExternalLink, FolderOpen, Paperclip, FileSpreadsheet, Download,
 } from 'lucide-react';
 
 export function InvoicesPage() {
@@ -14,6 +14,7 @@ export function InvoicesPage() {
   const [detail, setDetail] = useState<InvoiceDetail | null>(null);
   const [matchingId, setMatchingId] = useState<number | null>(null);
   const [unmatchedDocs, setUnmatchedDocs] = useState<Approval[]>([]);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   const reload = () => getAPI().getInvoices(month).then(setInvoices);
 
@@ -81,12 +82,41 @@ export function InvoicesPage() {
     <div className="p-8 max-w-6xl mx-auto space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">세금계산서 목록</h2>
-        <input
-          type="month"
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-          className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
-        />
+        <div className="flex items-center gap-2">
+          {invoices.length > 0 && (
+            <div className="relative">
+              <button
+                onClick={() => setShowExportMenu(v => !v)}
+                className="flex items-center gap-1 px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                <Download size={14} /> 엑셀 다운로드
+              </button>
+              {showExportMenu && (
+                <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 py-1 w-44">
+                  {([['list', '목록표'], ['summary', '공급자별 집계'], ['douzone', '더존 전표']] as const).map(([type, label]) => (
+                    <button
+                      key={type}
+                      onClick={async () => {
+                        setShowExportMenu(false);
+                        const result = await getAPI().exportExcel(month, type);
+                        alert(`저장 완료: ${result.file_path}`);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <input
+            type="month"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+          />
+        </div>
       </div>
 
       {invoices.length === 0 ? (

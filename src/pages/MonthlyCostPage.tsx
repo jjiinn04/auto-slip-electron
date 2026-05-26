@@ -33,14 +33,7 @@ export function MonthlyCostPage() {
   };
 
   useEffect(() => {
-    getAPI().getMonthlyCostData(baseYear).then((d) => {
-      setData(d);
-      if (d.items.length === 0) {
-        getAPI().autoDetectCostItems().then((r) => {
-          if (r.added > 0) loadData();
-        });
-      }
-    });
+    getAPI().getMonthlyCostData(baseYear).then(setData);
   }, [baseYear]);
 
   useEffect(() => {
@@ -191,16 +184,16 @@ export function MonthlyCostPage() {
           <table className="w-max min-w-full text-xs border-collapse">
             <thead className="sticky top-0 z-10">
               <tr className="bg-slate-800 text-white">
-                <th className="border border-slate-600 px-2 py-2 text-center w-10 font-medium" rowSpan={2}>순번</th>
-                <th className="border border-slate-600 px-2 py-2 text-center min-w-[200px] font-medium" rowSpan={2}>내역</th>
-                <th className="border border-slate-600 px-2 py-2 text-center w-12 font-medium" rowSpan={2}>주기</th>
-                <th className="border border-slate-600 px-2 py-2 text-center min-w-[90px] font-medium" rowSpan={2}>거래처</th>
-                <th className="border border-slate-600 px-1 py-2 text-center w-10 font-medium" rowSpan={2}>년도</th>
-                <th className="border border-slate-600 px-1 py-2 text-center w-[95px] font-medium" rowSpan={2}>합계</th>
+                <th className="border border-slate-600 px-2 py-2 text-center w-10 font-medium" rowSpan={shortYears.length}>순번</th>
+                <th className="border border-slate-600 px-2 py-2 text-center min-w-[200px] font-medium" rowSpan={shortYears.length}>내역</th>
+                <th className="border border-slate-600 px-2 py-2 text-center w-12 font-medium" rowSpan={shortYears.length}>주기</th>
+                <th className="border border-slate-600 px-2 py-2 text-center min-w-[90px] font-medium" rowSpan={shortYears.length}>거래처</th>
+                <th className="border border-slate-600 px-1 py-2 text-center w-10 font-medium" rowSpan={shortYears.length}>년도</th>
+                <th className="border border-slate-600 px-1 py-2 text-center w-[95px] font-medium" rowSpan={shortYears.length}>합계</th>
                 <th className="border border-slate-600 px-2 py-1.5 text-center font-medium" colSpan={12}>
                   {baseYear}년 월 비용 (단위: 원, VAT 별도)
                 </th>
-                <th className="border border-slate-600 px-2 py-2 text-center min-w-[140px] font-medium" rowSpan={2}>계약기간</th>
+                <th className="border border-slate-600 px-2 py-2 text-center min-w-[140px] font-medium" rowSpan={shortYears.length}>계약기간</th>
               </tr>
               <tr className="bg-slate-700 text-white">
                 {Array.from({ length: 12 }, (_, i) => (
@@ -260,10 +253,10 @@ export function MonthlyCostPage() {
                     <tr key={`${item.id}-${year}`} className={`${bg} border-b border-slate-200 hover:bg-slate-50`}>
                       {isFirst && (
                         <>
-                          <td className="border border-slate-200 px-2 py-1.5 text-center text-slate-500" rowSpan={2}>{idx + 1}</td>
-                          <td className="border border-slate-200 px-3 py-1.5 font-medium text-slate-800" rowSpan={2}>{item.display_name}</td>
-                          <td className="border border-slate-200 px-1 py-1.5 text-center text-slate-600 text-[11px] font-medium" rowSpan={2}>{item.billing_cycle === 'yearly' ? '년별' : '월별'}</td>
-                          <td className="border border-slate-200 px-2 py-1.5 text-center text-slate-500" rowSpan={2}>{item.supplier}</td>
+                          <td className="border border-slate-200 px-2 py-1.5 text-center text-slate-500" rowSpan={shortYears.length}>{idx + 1}</td>
+                          <td className="border border-slate-200 px-3 py-1.5 font-medium text-slate-800" rowSpan={shortYears.length}>{item.display_name}</td>
+                          <td className="border border-slate-200 px-1 py-1.5 text-center text-slate-600 text-[11px] font-medium" rowSpan={shortYears.length}>{item.billing_cycle === 'yearly' ? '년별' : '월별'}</td>
+                          <td className="border border-slate-200 px-2 py-1.5 text-center text-slate-500" rowSpan={shortYears.length}>{item.supplier}</td>
                         </>
                       )}
                       <td className="border border-slate-200 px-1 py-1.5 text-center text-slate-400 font-medium">{sy}년</td>
@@ -302,7 +295,7 @@ export function MonthlyCostPage() {
                         );
                       })}
                       {isFirst && (
-                        <td className="border border-slate-200 px-2 py-1.5 text-center text-slate-500 text-[11px] whitespace-pre-line" rowSpan={2}>{item.contract_period}</td>
+                        <td className="border border-slate-200 px-2 py-1.5 text-center text-slate-500 text-[11px] whitespace-pre-line" rowSpan={shortYears.length}>{item.contract_period}</td>
                       )}
                     </tr>
                   );
