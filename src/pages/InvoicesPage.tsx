@@ -7,15 +7,12 @@ import {
   ExternalLink, FolderOpen, Paperclip, FileSpreadsheet,
 } from 'lucide-react';
 
-type MatchType = 'approval' | 'statement';
-
 export function InvoicesPage() {
   const { month, setMonth } = useAppStore();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<InvoiceDetail | null>(null);
   const [matchingId, setMatchingId] = useState<number | null>(null);
-  const [matchingType, setMatchingType] = useState<MatchType>('approval');
   const [unmatchedDocs, setUnmatchedDocs] = useState<Approval[]>([]);
 
   const reload = () => getAPI().getInvoices(month).then(setInvoices);
@@ -46,11 +43,10 @@ export function InvoicesPage() {
     reload();
   };
 
-  const handleStartMatch = async (e: React.MouseEvent, invoiceId: number, type: MatchType) => {
+  const handleStartMatch = async (e: React.MouseEvent, invoiceId: number) => {
     e.stopPropagation();
     setMatchingId(invoiceId);
-    setMatchingType(type);
-    const docs = await getAPI().getUnmatchedApprovals(month, type);
+    const docs = await getAPI().getUnmatchedApprovals(month, 'statement');
     setUnmatchedDocs(docs);
   };
 
@@ -124,7 +120,6 @@ export function InvoicesPage() {
                   expanded={expandedId === inv.id}
                   detail={expandedId === inv.id ? detail : null}
                   matchingId={matchingId}
-                  matchingType={matchingType}
                   unmatchedDocs={unmatchedDocs}
                   onExpand={handleExpand}
                   onDelete={handleDelete}
@@ -134,6 +129,7 @@ export function InvoicesPage() {
                   onCancelMatch={() => setMatchingId(null)}
                   onOpenFile={handleOpenFile}
                   onShowInFolder={handleShowInFolder}
+                  onReload={reload}
                 />
               ))}
             </tbody>
@@ -145,24 +141,24 @@ export function InvoicesPage() {
 }
 
 function InvoiceRow({
-  inv, expanded, detail, matchingId, matchingType, unmatchedDocs,
+  inv, expanded, detail, matchingId, unmatchedDocs,
   onExpand, onDelete, onStartMatch, onMatch, onUnmatch, onCancelMatch,
-  onOpenFile, onShowInFolder,
+  onOpenFile, onShowInFolder, onReload,
 }: {
   inv: Invoice;
   expanded: boolean;
   detail: InvoiceDetail | null;
   matchingId: number | null;
-  matchingType: MatchType;
   unmatchedDocs: Approval[];
   onExpand: (id: number) => void;
   onDelete: (e: React.MouseEvent, id: number) => void;
-  onStartMatch: (e: React.MouseEvent, id: number, type: MatchType) => void;
+  onStartMatch: (e: React.MouseEvent, id: number) => void;
   onMatch: (invoiceId: number, docId: number) => void;
   onUnmatch: (invoiceId: number, docId: number) => void;
   onCancelMatch: () => void;
   onOpenFile: (e: React.MouseEvent, path: string) => void;
   onShowInFolder: (e: React.MouseEvent, path: string) => void;
+  onReload: () => void;
 }) {
   const isMatchMode = matchingId === inv.id;
 
@@ -185,7 +181,7 @@ function InvoiceRow({
             </span>
           ) : (
             <button
-              onClick={(e) => onStartMatch(e, inv.id, 'statement')}
+              onClick={(e) => onStartMatch(e, inv.id)}
               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500 hover:bg-sky-50 hover:text-sky-600 hover:border-sky-200 border border-slate-200 transition-colors"
             >
               <Link size={10} /> 미매칭
@@ -193,17 +189,14 @@ function InvoiceRow({
           )}
         </td>
         <td className="px-4 py-2.5 text-center">
-          {inv.approval_files ? (
+          {inv.master_count > 0 ? (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <Paperclip size={10} /> 매칭됨
+              <Paperclip size={10} /> {inv.master_count}건
             </span>
           ) : (
-            <button
-              onClick={(e) => onStartMatch(e, inv.id, 'approval')}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 border border-slate-200 transition-colors"
-            >
-              <Link size={10} /> 미매칭
-            </button>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-600 border border-amber-200">
+              미등록
+            </span>
           )}
         </td>
         <td className="px-2 py-2.5">
@@ -222,14 +215,12 @@ function InvoiceRow({
           <td colSpan={10} className="px-6 py-3 bg-blue-50 border-y border-blue-200">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-medium text-blue-800">
-                매칭할 {matchingType === 'statement' ? '거래명세표' : '기안문서'}를 선택하세요
+                매칭할 거래명세표를 선택하세요
               </p>
               <button onClick={onCancelMatch} className="text-xs text-blue-600 hover:text-blue-800">취소</button>
             </div>
             {unmatchedDocs.length === 0 ? (
-              <p className="text-xs text-blue-500">
-                미매칭 {matchingType === 'statement' ? '거래명세표' : '기안문서'}가 없습니다.
-              </p>
+              <p className="text-xs text-blue-500">미매칭 거래명세표가 없습니다.</p>
             ) : (
               <div className="space-y-1">
                 {unmatchedDocs.map((a) => (
@@ -239,11 +230,7 @@ function InvoiceRow({
                     onClick={() => onMatch(inv.id, a.id)}
                   >
                     <div className="flex items-center gap-2 text-sm">
-                      {matchingType === 'statement' ? (
-                        <FileSpreadsheet size={12} className="text-sky-400" />
-                      ) : (
-                        <Paperclip size={12} className="text-blue-400" />
-                      )}
+                      <FileSpreadsheet size={12} className="text-sky-400" />
                       <span className="text-gray-800">{a.file_name}</span>
                       <span className="text-xs text-gray-400">{a.file_type}</span>
                     </div>
@@ -301,28 +288,19 @@ function InvoiceRow({
                 </div>
               )}
 
-              <DocSection
-                title="거래명세표"
-                icon={<FileSpreadsheet size={10} />}
+              <StatementSection
                 docs={detail.statements}
                 invoiceId={inv.id}
-                type="statement"
                 onStartMatch={onStartMatch}
                 onOpenFile={onOpenFile}
                 onShowInFolder={onShowInFolder}
                 onUnmatch={onUnmatch}
               />
 
-              <DocSection
-                title="기안문서"
-                icon={<Paperclip size={10} />}
-                docs={detail.approvals}
-                invoiceId={inv.id}
-                type="approval"
-                onStartMatch={onStartMatch}
+              <MasterSection
+                masters={detail.approvals}
                 onOpenFile={onOpenFile}
                 onShowInFolder={onShowInFolder}
-                onUnmatch={onUnmatch}
               />
             </div>
           </td>
@@ -332,32 +310,25 @@ function InvoiceRow({
   );
 }
 
-function DocSection({
-  title, icon, docs, invoiceId, type,
-  onStartMatch, onOpenFile, onShowInFolder, onUnmatch,
+function StatementSection({
+  docs, invoiceId, onStartMatch, onOpenFile, onShowInFolder, onUnmatch,
 }: {
-  title: string;
-  icon: React.ReactNode;
   docs: Approval[];
   invoiceId: number;
-  type: MatchType;
-  onStartMatch: (e: React.MouseEvent, id: number, type: MatchType) => void;
+  onStartMatch: (e: React.MouseEvent, id: number) => void;
   onOpenFile: (e: React.MouseEvent, path: string) => void;
   onShowInFolder: (e: React.MouseEvent, path: string) => void;
   onUnmatch: (invoiceId: number, docId: number) => void;
 }) {
-  const colorClass = type === 'statement' ? 'text-sky-600 hover:text-sky-800' : 'text-blue-600 hover:text-blue-800';
-  const iconColor = type === 'statement' ? 'text-sky-500' : 'text-emerald-500';
-
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
-        <p className="text-xs font-semibold text-gray-500">{title}</p>
+        <p className="text-xs font-semibold text-gray-500">거래명세표</p>
         <button
-          onClick={(e) => onStartMatch(e, invoiceId, type)}
-          className={`text-xs ${colorClass} flex items-center gap-1`}
+          onClick={(e) => onStartMatch(e, invoiceId)}
+          className="text-xs text-sky-600 hover:text-sky-800 flex items-center gap-1"
         >
-          <Link size={10} /> {title} 매칭
+          <Link size={10} /> 거래명세표 매칭
         </button>
       </div>
       {docs.length > 0 ? (
@@ -365,30 +336,18 @@ function DocSection({
           {docs.map((a) => (
             <div key={a.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-200">
               <div className="flex items-center gap-2">
-                <span className={iconColor}>{icon}</span>
+                <FileSpreadsheet size={10} className="text-sky-500" />
                 <span className="text-sm text-gray-800">{a.file_name}</span>
                 <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{a.file_type}</span>
               </div>
               <div className="flex items-center gap-1">
-                <button
-                  onClick={(e) => onOpenFile(e, a.file_path)}
-                  className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                  title="파일 열기"
-                >
+                <button onClick={(e) => onOpenFile(e, a.file_path)} className="p-1 text-gray-400 hover:text-blue-600 transition-colors" title="파일 열기">
                   <ExternalLink size={14} />
                 </button>
-                <button
-                  onClick={(e) => onShowInFolder(e, a.file_path)}
-                  className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                  title="폴더에서 보기"
-                >
+                <button onClick={(e) => onShowInFolder(e, a.file_path)} className="p-1 text-gray-400 hover:text-blue-600 transition-colors" title="폴더에서 보기">
                   <FolderOpen size={14} />
                 </button>
-                <button
-                  onClick={() => onUnmatch(invoiceId, a.id)}
-                  className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                  title="매칭 해제"
-                >
+                <button onClick={() => onUnmatch(invoiceId, a.id)} className="p-1 text-gray-400 hover:text-red-500 transition-colors" title="매칭 해제">
                   <Unlink size={14} />
                 </button>
               </div>
@@ -396,7 +355,50 @@ function DocSection({
           ))}
         </div>
       ) : (
-        <p className="text-xs text-gray-400">매칭된 {title}가 없습니다.</p>
+        <p className="text-xs text-gray-400">매칭된 거래명세표가 없습니다.</p>
+      )}
+    </div>
+  );
+}
+
+function MasterSection({
+  masters, onOpenFile, onShowInFolder,
+}: {
+  masters: ApprovalMaster[];
+  onOpenFile: (e: React.MouseEvent, path: string) => void;
+  onShowInFolder: (e: React.MouseEvent, path: string) => void;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <p className="text-xs font-semibold text-gray-500">기안문서</p>
+        <span className="text-xs text-gray-400">공급자+적요 기준 자동 매칭</span>
+      </div>
+      {masters.length > 0 ? (
+        <div className="space-y-1.5">
+          {masters.map((m) => (
+            <div key={m.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-emerald-200">
+              <div className="flex items-center gap-2">
+                <Paperclip size={10} className="text-emerald-500" />
+                <span className="text-sm text-gray-800">{m.file_name}</span>
+                <span className="text-xs text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                  {m.match_supplier}{m.match_description ? ` · ${m.match_description}` : ''}
+                </span>
+                {m.memo && <span className="text-xs text-gray-400">{m.memo}</span>}
+              </div>
+              <div className="flex items-center gap-1">
+                <button onClick={(e) => onOpenFile(e, m.file_path)} className="p-1 text-gray-400 hover:text-blue-600 transition-colors" title="파일 열기">
+                  <ExternalLink size={14} />
+                </button>
+                <button onClick={(e) => onShowInFolder(e, m.file_path)} className="p-1 text-gray-400 hover:text-blue-600 transition-colors" title="폴더에서 보기">
+                  <FolderOpen size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-amber-500">등록된 기안문서가 없습니다. 매칭 페이지에서 기안문서를 등록하세요.</p>
       )}
     </div>
   );

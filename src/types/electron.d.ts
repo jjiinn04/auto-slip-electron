@@ -22,6 +22,14 @@ interface ElectronAPI {
   autoDetectCostItems: () => Promise<{ added: number; total: number }>;
   importCostItemsFromExcel: (filePath: string) => Promise<{ added: number; skipped: number; total: number; amountsImported: number }>;
   getMonthlyCostData: (baseYear: number) => Promise<MonthlyCostData>;
+  saveCostItemAmount: (costItemId: number, year: number, month: number, amount: number) => Promise<boolean>;
+  getApprovalMasters: () => Promise<ApprovalMaster[]>;
+  addApprovalMaster: (data: { match_supplier: string; match_description: string; memo: string }) =>
+    Promise<{ id: number; file_name: string; file_path: string; file_type: string } | null>;
+  updateApprovalMaster: (id: number, data: { match_supplier: string; match_description: string; memo: string }) => Promise<boolean>;
+  deleteApprovalMaster: (id: number) => Promise<boolean>;
+  updateApprovalMasterFile: (id: number) => Promise<{ file_name: string; file_path: string; file_type: string } | null>;
+
   exportExcel: (month: string, type: string) => Promise<ExportResult>;
   onProcessingProgress: (callback: (progress: ProcessingProgress) => void) => () => void;
 }
@@ -74,12 +82,24 @@ interface Invoice {
   month: string;
   approval_files: string | null;
   statement_files: string | null;
+  master_count: number;
+}
+
+interface ApprovalMaster {
+  id: number;
+  file_name: string;
+  file_path: string;
+  file_type: string;
+  match_supplier: string;
+  match_description: string;
+  memo: string;
+  created_at: string;
 }
 
 interface InvoiceDetail {
   invoice: Invoice;
   items: LineItem[];
-  approvals: Approval[];
+  approvals: ApprovalMaster[];
   statements: Approval[];
 }
 

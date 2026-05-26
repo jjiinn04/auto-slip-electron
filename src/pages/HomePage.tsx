@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FolderOpen, Play, CheckCircle, AlertCircle } from 'lucide-react';
+import { FolderOpen, Play, CheckCircle, AlertCircle, Trash2 } from 'lucide-react';
 import { useAppStore } from '../stores/useAppStore';
 import { formatAmount } from '../lib/format';
 import { getAPI } from '../lib/electron-mock';
@@ -13,6 +13,7 @@ export function HomePage() {
   const [invoiceScan, setInvoiceScan] = useState<ScanResult | null>(null);
   const [approvalScan, setApprovalScan] = useState<ScanResult | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -31,6 +32,7 @@ export function HomePage() {
       getAPI().scanFolder(approvalFolder).then(setApprovalScan);
     }
     getAPI().getSummary(month).then(setSummary);
+    getAPI().getInvoices(month).then(setInvoices);
   }, [invoiceFolder, approvalFolder, month]);
 
   useEffect(() => {
@@ -60,8 +62,12 @@ export function HomePage() {
       const result = await getAPI().processFiles(invoiceFolder, approvalFolder, month);
       console.log('[handleProcess] result:', result);
       setLastResult(result);
-      const newSummary = await getAPI().getSummary(month);
+      const [newSummary, newInvoices] = await Promise.all([
+        getAPI().getSummary(month),
+        getAPI().getInvoices(month),
+      ]);
       setSummary(newSummary);
+      setInvoices(newInvoices);
     } catch (err: any) {
       console.error('[handleProcess] error:', err);
       alert(`처리 오류: ${err.message}`);
@@ -182,7 +188,7 @@ export function HomePage() {
                 <span className="font-medium">{lastResult.parsed}건</span>
               </div>
               <div>
-                <span className="text-gray-600">기안문서: </span>
+                <span className="text-gray-600">거래명세표: </span>
                 <span className="font-medium">{lastResult.approvals}건</span>
               </div>
               <div>
@@ -205,65 +211,66 @@ export function HomePage() {
         )}
       </div>
 
-      {/* Summary */}
-      {summary && summary.invoices.total_invoices > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">{month} 요약</h3>
-          <div className="grid grid-cols-4 gap-4 mb-6">
-            <div className="text-center">
-              <p className="text-3xl font-bold text-gray-900">{summary.invoices.total_invoices}</p>
-              <p className="text-sm text-gray-500 mt-1">세금계산서</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-gray-900">{summary.approvals}</p>
-              <p className="text-sm text-gray-500 mt-1">기안문서</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-blue-600">{summary.matched}</p>
-              <p className="text-sm text-gray-500 mt-1">매칭 완료</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xl font-bold text-gray-900">₩{formatAmount(summary.invoices.total_amount)}</p>
-              <p className="text-sm text-gray-500 mt-1">합계 금액</p>
-            </div>
+      {/* Processed Invoice List */}
+      {invoices.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900">
+              {month} 처리된 세금계산서 ({invoices.length}건)
+            </h3>
+            <span className="text-sm text-gray-500">
+              합계 ₩{formatAmount(invoices.reduce((s, inv) => s + inv.total_amount, 0))}
+            </span>
           </div>
-
-          {summary.bySupplier.length > 0 && (
-            <div>
-              <h4 className="text-sm font-semibold text-gray-700 mb-2">공급자별</h4>
-              <div className="overflow-x-auto rounded-lg border border-gray-100">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-600 uppercase">
-                      <th className="px-4 py-2">공급자</th>
-                      <th className="px-4 py-2 text-right">건수</th>
-                      <th className="px-4 py-2 text-right">공급가액</th>
-                      <th className="px-4 py-2 text-right">세액</th>
-                      <th className="px-4 py-2 text-right">합계</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {summary.bySupplier.map((s, i) => (
-                      <tr key={i} className="hover:bg-gray-50">
-                        <td className="px-4 py-2 font-medium text-gray-900">{s.supplier_name}</td>
-                        <td className="px-4 py-2 text-right text-gray-600">{s.count}</td>
-                        <td className="px-4 py-2 text-right text-gray-600">{formatAmount(s.supply)}</td>
-                        <td className="px-4 py-2 text-right text-gray-600">{formatAmount(s.tax)}</td>
-                        <td className="px-4 py-2 text-right font-medium">{formatAmount(s.total)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          <div className="mt-4 flex gap-3">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-600">
+                <th className="px-4 py-2">발행일</th>
+                <th className="px-4 py-2">공급자</th>
+                <th className="px-4 py-2">품명</th>
+                <th className="px-4 py-2 text-right">공급가액</th>
+                <th className="px-4 py-2 text-right">세액</th>
+                <th className="px-4 py-2 text-right">합계</th>
+                <th className="w-10 px-2 py-2"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {invoices.map((inv) => (
+                <tr key={inv.id} className="hover:bg-gray-50 group">
+                  <td className="px-4 py-2 text-gray-600">{inv.issue_date}</td>
+                  <td className="px-4 py-2 font-medium text-gray-900">{inv.supplier_name}</td>
+                  <td className="px-4 py-2 text-gray-600">{inv.description}</td>
+                  <td className="px-4 py-2 text-right tabular-nums text-gray-600">{formatAmount(inv.supply_amount)}</td>
+                  <td className="px-4 py-2 text-right tabular-nums text-gray-600">{formatAmount(inv.tax_amount)}</td>
+                  <td className="px-4 py-2 text-right tabular-nums font-medium">{formatAmount(inv.total_amount)}</td>
+                  <td className="px-2 py-2">
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`${inv.supplier_name} - ${inv.description}\n이 세금계산서를 삭제하시겠습니까?`)) return;
+                        await getAPI().deleteInvoice(inv.id);
+                        const [newInvoices, newSummary] = await Promise.all([
+                          getAPI().getInvoices(month),
+                          getAPI().getSummary(month),
+                        ]);
+                        setInvoices(newInvoices);
+                        setSummary(newSummary);
+                      }}
+                      className="p-1 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="삭제"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="px-6 py-3 border-t border-gray-100 flex gap-3">
             <button onClick={() => navigate('/invoices')} className="text-sm text-blue-600 hover:text-blue-800">
-              세금계산서 상세 보기 →
+              상세 보기 →
             </button>
             <button onClick={() => navigate('/matching')} className="text-sm text-blue-600 hover:text-blue-800">
-              매칭 현황 보기 →
+              기안문서 관리 →
             </button>
             <button onClick={() => navigate('/export')} className="text-sm text-blue-600 hover:text-blue-800">
               엑셀 내보내기 →

@@ -1,10 +1,17 @@
-import { useEffect, useState, useRef } from 'react';
-import { Download, Plus, Wand2, Trash2, Save, X, FileSpreadsheet, GripVertical } from 'lucide-react';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { Download, Plus, Wand2, Trash2, Save, X, FileSpreadsheet, Pencil } from 'lucide-react';
 import { formatAmount } from '../lib/format';
 import { getAPI } from '../lib/electron-mock';
 
 interface EditableCostItem extends CostItem {
   dirty?: boolean;
+}
+
+interface EditingCell {
+  itemId: number;
+  year: number;
+  month: number;
+  value: string;
 }
 
 export function MonthlyCostPage() {
@@ -17,6 +24,9 @@ export function MonthlyCostPage() {
   const [costItems, setCostItems] = useState<EditableCostItem[]>([]);
   const [editingItem, setEditingItem] = useState<Partial<CostItem> | null>(null);
   const [newItem, setNewItem] = useState<Partial<CostItem> | null>(null);
+  const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const cellInputRef = useRef<HTMLInputElement>(null);
 
   const loadData = () => {
     getAPI().getMonthlyCostData(baseYear).then(setData);
@@ -101,6 +111,19 @@ export function MonthlyCostPage() {
     }
   };
 
+  const handleCellSave = useCallback(async () => {
+    if (!editingCell) return;
+    const amount = parseFloat(editingCell.value.replace(/,/g, '')) || 0;
+    await getAPI().saveCostItemAmount(editingCell.itemId, editingCell.year, editingCell.month, amount);
+    setEditingCell(null);
+    loadData();
+  }, [editingCell]);
+
+  const startCellEdit = (itemId: number, year: number, month: number, currentVal: number) => {
+    setEditingCell({ itemId, year, month, value: currentVal > 0 ? String(currentVal) : '' });
+    setTimeout(() => cellInputRef.current?.select(), 0);
+  };
+
   const years = data?.years || [baseYear, baseYear - 1];
   const shortYears = years.map(y => String(y).slice(2));
   const now = new Date();
@@ -137,6 +160,10 @@ export function MonthlyCostPage() {
               <option key={y} value={y}>{y}년</option>
             ))}
           </select>
+          <button onClick={() => setEditMode(!editMode)}
+            className={`px-3 py-1.5 text-sm border rounded flex items-center gap-1 ${editMode ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-gray-300 hover:bg-gray-50'}`}>
+            <Pencil size={14} /> {editMode ? '편집 완료' : '금액 편집'}
+          </button>
           <button onClick={() => setShowSettings(true)}
             className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50">
             항목 관리
@@ -247,9 +274,30 @@ export function MonthlyCostPage() {
                         const month = m + 1;
                         const val = yd?.months[month] || 0;
                         const missing = yi === 0 && isMissingMonthly(item, year, month);
+                        const isEditing = editingCell?.itemId === item.id && editingCell?.year === year && editingCell?.month === month;
                         return (
-                          <td key={m} className={`border border-slate-100 px-1 py-1.5 text-right tabular-nums ${missing ? 'bg-red-50 text-red-500' : 'text-slate-700'}`}>
-                            {val > 0 ? formatAmount(val) : missing ? '미처리' : ''}
+                          <td
+                            key={m}
+                            className={`border border-slate-100 px-1 py-1.5 text-right tabular-nums ${missing ? 'bg-red-50 text-red-500' : 'text-slate-700'} ${editMode && !isEditing ? 'cursor-pointer hover:bg-blue-50' : ''}`}
+                            onDoubleClick={() => editMode && startCellEdit(item.id, year, month, val)}
+                          >
+                            {isEditing ? (
+                              <input
+                                ref={cellInputRef}
+                                type="text"
+                                value={editingCell.value}
+                                onChange={e => setEditingCell({ ...editingCell, value: e.target.value })}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') handleCellSave();
+                                  if (e.key === 'Escape') setEditingCell(null);
+                                }}
+                                onBlur={handleCellSave}
+                                className="w-full text-right text-xs border border-blue-400 rounded px-1 py-0.5 outline-none bg-white"
+                                autoFocus
+                              />
+                            ) : (
+                              val > 0 ? formatAmount(val) : missing ? '미처리' : ''
+                            )}
                           </td>
                         );
                       })}

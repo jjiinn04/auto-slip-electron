@@ -28,6 +28,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   autoDetectCostItems: () => ipcRenderer.invoke('costItems:autoDetect'),
   importCostItemsFromExcel: (filePath: string) => ipcRenderer.invoke('costItems:importFromExcel', filePath),
   getMonthlyCostData: (baseYear: number) => ipcRenderer.invoke('monthlyCost:data', baseYear),
+  saveCostItemAmount: (costItemId: number, year: number, month: number, amount: number) =>
+    ipcRenderer.invoke('costItemAmount:save', costItemId, year, month, amount),
+
+  getApprovalMasters: () => ipcRenderer.invoke('approvalMasters:list'),
+  addApprovalMaster: (data: { match_supplier: string; match_description: string; memo: string }) =>
+    ipcRenderer.invoke('approvalMasters:add', data),
+  updateApprovalMaster: (id: number, data: { match_supplier: string; match_description: string; memo: string }) =>
+    ipcRenderer.invoke('approvalMasters:update', id, data),
+  deleteApprovalMaster: (id: number) => ipcRenderer.invoke('approvalMasters:delete', id),
+  updateApprovalMasterFile: (id: number) => ipcRenderer.invoke('approvalMasters:updateFile', id),
 
   exportExcel: (month: string, type: string) => ipcRenderer.invoke('export:excel', month, type),
 

@@ -10,7 +10,7 @@ import { SettingsPage } from './pages/SettingsPage';
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: '홈' },
   { to: '/invoices', icon: FileSpreadsheet, label: '세금계산서' },
-  { to: '/matching', icon: FileCheck, label: '매칭' },
+  { to: '/matching', icon: FileCheck, label: '기안문서' },
   { to: '/monthly-cost', icon: Monitor, label: '월별 비용' },
   { to: '/export', icon: FolderOpen, label: '내보내기' },
   { to: '/settings', icon: Settings, label: '설정' },

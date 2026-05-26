@@ -18,7 +18,7 @@ function createWindow() {
     minHeight: 600,
     show: false,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.mjs'),
       contextIsolation: true,
       nodeIntegration: false,
     },
@@ -34,7 +34,7 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
     mainWindow?.focus();
-    // mainWindow?.webContents.openDevTools({ mode: 'bottom' });
+    mainWindow?.webContents.openDevTools({ mode: 'bottom' });
   });
 
   mainWindow.on('closed', () => {

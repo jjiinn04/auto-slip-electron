@@ -14,6 +14,10 @@ interface ScannedFile {
   size: number;
 }
 
+function normalize(s: string): string {
+  return s.toLowerCase().replace(/[-_\s·.]/g, '');
+}
+
 function detectFileType(fileName: string): ScannedFile['type'] {
   const ext = path.extname(fileName).toLowerCase();
   if (ext === '.xml') return 'xml';
@@ -85,9 +89,9 @@ export function registerIpcHandlers(
     const invoiceFiles = scanFolderFiles(invoiceFolder);
     const approvalFiles = approvalFolder ? scanFolderFiles(approvalFolder) : [];
     const xmlFiles = invoiceFiles.filter(f => f.type === 'xml');
+    console.log(`[files:process] found ${invoiceFiles.length} files, ${xmlFiles.length} XMLs in ${invoiceFolder}`);
     const statementFiles = invoiceFiles.filter(f => f.type === 'pdf' || f.type === 'image');
-    const approvalDocFiles = approvalFiles.filter(f => f.type === 'pdf' || f.type === 'image');
-    const docFiles = [...statementFiles, ...approvalDocFiles];
+    const docFiles = [...statementFiles];
     const files = [...invoiceFiles, ...approvalFiles];
 
     const sendProgress = (step: string, current: number, total: number) => {
@@ -157,28 +161,27 @@ export function registerIpcHandlers(
     for (let i = 0; i < docFiles.length; i++) {
       const file = docFiles[i];
       sendProgress('문서 등록', i + 1, docFiles.length);
-      const classification = statementFiles.includes(file) ? 'statement' : 'approval';
-      insertDoc.run(file.name, file.path, file.type, classification, month);
+      insertDoc.run(file.name, file.path, file.type, 'statement', month);
     }
 
-    sendProgress('매칭', 0, 1);
-    const invoices = db.prepare('SELECT id, supplier_name, source_file FROM tax_invoices WHERE month = ?').all(month) as any[];
-    const approvals = db.prepare('SELECT id, file_name FROM approval_documents WHERE month = ? AND matched_invoice_id IS NULL').all(month) as any[];
+    sendProgress('거래명세표 매칭', 0, 1);
+    const invoicesForMatch = db.prepare('SELECT id, supplier_name, description FROM tax_invoices WHERE month = ?').all(month) as any[];
+    const statementsForMatch = db.prepare("SELECT id, file_name FROM approval_documents WHERE month = ? AND matched_invoice_id IS NULL AND classification = 'statement'").all(month) as any[];
 
     let matchCount = 0;
     const updateMatch = db.prepare('UPDATE approval_documents SET matched_invoice_id = ? WHERE id = ?');
-    for (const approval of approvals) {
-      const approvalName = approval.file_name.toLowerCase().replace(/\.[^.]+$/, '');
-      for (const inv of invoices) {
+    for (const stmt of statementsForMatch) {
+      const stmtName = stmt.file_name.toLowerCase().replace(/\.[^.]+$/, '');
+      for (const inv of invoicesForMatch) {
         const supplierLower = (inv.supplier_name || '').toLowerCase();
-        if (approvalName.includes(supplierLower) || supplierLower.includes(approvalName)) {
-          updateMatch.run(inv.id, approval.id);
+        if (stmtName.includes(supplierLower) || supplierLower.includes(stmtName)) {
+          updateMatch.run(inv.id, stmt.id);
           matchCount++;
           break;
         }
       }
     }
-    sendProgress('매칭', 1, 1);
+    sendProgress('거래명세표 매칭', 1, 1);
 
     db.prepare(`
       INSERT INTO processing_logs (month, action, description, file_count)
@@ -197,24 +200,49 @@ export function registerIpcHandlers(
   });
 
   ipcMain.handle('invoices:list', (_event, month: string) => {
-    return db.prepare(`
+    const invoices = db.prepare(`
       SELECT t.*,
-        GROUP_CONCAT(CASE WHEN a.classification = 'approval' THEN a.file_name END) as approval_files,
         GROUP_CONCAT(CASE WHEN a.classification = 'statement' THEN a.file_name END) as statement_files
       FROM tax_invoices t
       LEFT JOIN approval_documents a ON a.matched_invoice_id = t.id
       WHERE t.month = ?
       GROUP BY t.id
       ORDER BY t.issue_date DESC
-    `).all(month);
+    `).all(month) as any[];
+
+    const masters = db.prepare('SELECT * FROM approval_masters').all() as any[];
+
+    return invoices.map((inv: any) => {
+      const matchedMasters = masters.filter((m: any) => {
+        const supplierMatch = inv.supplier_name && m.match_supplier &&
+          (inv.supplier_name.includes(m.match_supplier) || m.match_supplier.includes(inv.supplier_name));
+        if (!supplierMatch) return false;
+        if (!m.match_description) return true;
+        return inv.description && inv.description.includes(m.match_description);
+      });
+      return {
+        ...inv,
+        approval_files: matchedMasters.length > 0 ? matchedMasters.map((m: any) => m.file_name).join(',') : null,
+        master_count: matchedMasters.length,
+      };
+    });
   });
 
   ipcMain.handle('invoices:get', (_event, id: number) => {
-    const invoice = db.prepare('SELECT * FROM tax_invoices WHERE id = ?').get(id);
+    const invoice = db.prepare('SELECT * FROM tax_invoices WHERE id = ?').get(id) as any;
     const items = db.prepare('SELECT * FROM line_items WHERE invoice_id = ? ORDER BY line_number').all(id);
-    const approvals = db.prepare("SELECT * FROM approval_documents WHERE matched_invoice_id = ? AND classification = 'approval'").all(id);
     const statements = db.prepare("SELECT * FROM approval_documents WHERE matched_invoice_id = ? AND classification = 'statement'").all(id);
-    return { invoice, items, approvals, statements };
+
+    const allMasters = db.prepare('SELECT * FROM approval_masters').all() as any[];
+    const masters = invoice ? allMasters.filter((m: any) => {
+      const supplierMatch = invoice.supplier_name && m.match_supplier &&
+        (invoice.supplier_name.includes(m.match_supplier) || m.match_supplier.includes(invoice.supplier_name));
+      if (!supplierMatch) return false;
+      if (!m.match_description) return true;
+      return invoice.description && invoice.description.includes(m.match_description);
+    }) : [];
+
+    return { invoice, items, approvals: masters, statements };
   });
 
   ipcMain.handle('invoices:delete', (_event, id: number) => {
@@ -453,6 +481,19 @@ export function registerIpcHandlers(
     return { added, skipped, total: seenNames.size, amountsImported };
   });
 
+  ipcMain.handle('costItemAmount:save', (_event, costItemId: number, year: number, month: number, amount: number) => {
+    if (amount <= 0) {
+      db.prepare('DELETE FROM cost_item_amounts WHERE cost_item_id = ? AND year = ? AND month = ?').run(costItemId, year, month);
+    } else {
+      db.prepare(`
+        INSERT INTO cost_item_amounts (cost_item_id, year, month, amount, source)
+        VALUES (?, ?, ?, ?, 'manual')
+        ON CONFLICT(cost_item_id, year, month) DO UPDATE SET amount = excluded.amount, source = 'manual'
+      `).run(costItemId, year, month, amount);
+    }
+    return true;
+  });
+
   ipcMain.handle('monthlyCost:data', (_event, baseYear: number) => {
     const items = db.prepare('SELECT * FROM cost_items ORDER BY sort_order, id').all() as any[];
     const years = [baseYear, baseYear - 1];
@@ -481,8 +522,9 @@ export function registerIpcHandlers(
         for (let m = 1; m <= 12; m++) yearData[y].months[m] = 0;
       }
 
+      const kw = normalize(item.match_keyword);
       for (const inv of invoices) {
-        if (inv.description && inv.description.includes(item.match_keyword)) {
+        if (inv.description && normalize(inv.description).includes(kw)) {
           const y = parseInt(inv.issue_date.slice(0, 4));
           const m = parseInt(inv.issue_date.slice(5, 7));
           if (yearData[y]) {
@@ -519,6 +561,62 @@ export function registerIpcHandlers(
     return { items: result, years };
   });
 
+  ipcMain.handle('approvalMasters:list', () => {
+    return db.prepare('SELECT * FROM approval_masters ORDER BY match_supplier, match_description').all();
+  });
+
+  ipcMain.handle('approvalMasters:add', async (_event, data: { match_supplier: string; match_description: string; memo: string }) => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      title: '기안문서 파일 선택',
+      filters: [
+        { name: '문서', extensions: ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'xlsx', 'xls', 'hwp', 'hwpx', 'doc', 'docx'] },
+      ],
+    });
+    if (result.canceled || !result.filePaths[0]) return null;
+
+    const filePath = result.filePaths[0];
+    const fileName = path.basename(filePath);
+    const fileType = detectFileType(fileName);
+
+    const r = db.prepare(
+      'INSERT INTO approval_masters (file_name, file_path, file_type, match_supplier, match_description, memo) VALUES (?,?,?,?,?,?)'
+    ).run(fileName, filePath, fileType, data.match_supplier, data.match_description, data.memo);
+
+    return { id: r.lastInsertRowid, file_name: fileName, file_path: filePath, file_type: fileType };
+  });
+
+  ipcMain.handle('approvalMasters:update', (_event, id: number, data: { match_supplier: string; match_description: string; memo: string }) => {
+    db.prepare('UPDATE approval_masters SET match_supplier=?, match_description=?, memo=? WHERE id=?')
+      .run(data.match_supplier, data.match_description, data.memo, id);
+    return true;
+  });
+
+  ipcMain.handle('approvalMasters:delete', (_event, id: number) => {
+    db.prepare('DELETE FROM approval_masters WHERE id=?').run(id);
+    return true;
+  });
+
+  ipcMain.handle('approvalMasters:updateFile', async (_event, id: number) => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      title: '기안문서 파일 변경',
+      filters: [
+        { name: '문서', extensions: ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'xlsx', 'xls', 'hwp', 'hwpx', 'doc', 'docx'] },
+      ],
+    });
+    if (result.canceled || !result.filePaths[0]) return null;
+
+    const filePath = result.filePaths[0];
+    const fileName = path.basename(filePath);
+    const fileType = detectFileType(fileName);
+
+    db.prepare('UPDATE approval_masters SET file_name=?, file_path=?, file_type=? WHERE id=?')
+      .run(fileName, filePath, fileType, id);
+
+    return { file_name: fileName, file_path: filePath, file_type: fileType };
+  });
+
   ipcMain.handle('export:excel', async (_event, month: string, type: string) => {
     if (type === 'monthly-cost') {
       const baseYear = parseInt(month) || new Date().getFullYear();
@@ -547,8 +645,9 @@ export function registerIpcHandlers(
           yearData[y] = { total: 0, months: {} };
           for (let m = 1; m <= 12; m++) yearData[y].months[m] = 0;
         }
+        const kwNorm = normalize(item.match_keyword);
         for (const inv of invoices) {
-          if (inv.description && inv.description.includes(item.match_keyword)) {
+          if (inv.description && normalize(inv.description).includes(kwNorm)) {
             const y = parseInt(inv.issue_date.slice(0, 4));
             const m = parseInt(inv.issue_date.slice(5, 7));
             if (yearData[y]) {

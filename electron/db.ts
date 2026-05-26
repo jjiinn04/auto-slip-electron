@@ -87,6 +87,17 @@ export function setupDatabase(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_invoices_month ON tax_invoices(month);
     CREATE INDEX IF NOT EXISTS idx_approvals_month ON approval_documents(month);
     CREATE INDEX IF NOT EXISTS idx_logs_month ON processing_logs(month);
+    CREATE TABLE IF NOT EXISTS approval_masters (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      file_name TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      file_type TEXT NOT NULL,
+      match_supplier TEXT NOT NULL,
+      match_description TEXT DEFAULT '',
+      memo TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_cost_items_sort ON cost_items(sort_order);
     CREATE INDEX IF NOT EXISTS idx_cost_amounts_item ON cost_item_amounts(cost_item_id, year);
   `);
