@@ -3,6 +3,9 @@ interface ElectronAPI {
   selectExcelFile: () => Promise<string | null>;
   getSettings: () => Promise<AppSettings>;
   setSettings: (data: Partial<AppSettings>) => Promise<boolean>;
+  getDepartments: () => Promise<Department[]>;
+  getCurrentDepartment: () => Promise<Department | null>;
+  selectDepartment: (id: string) => Promise<boolean>;
   scanFolder: (folderPath: string) => Promise<ScanResult>;
   processFiles: (invoiceFolder: string, approvalFolder: string, month: string) => Promise<ProcessResult>;
   getInvoices: (month: string) => Promise<Invoice[]>;
@@ -32,14 +35,34 @@ interface ElectronAPI {
   autoMatchApprovalMasters: (folderPath: string) => Promise<{ matched: number; skipped: number }>;
 
   exportExcel: (month: string, type: string) => Promise<ExportResult>;
+  getAppVersion: () => Promise<string>;
+  checkForUpdates: () => Promise<{ ok: boolean; version?: string; message?: string }>;
+  quitAndInstall: () => Promise<void>;
+  onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void;
   onProcessingProgress: (callback: (progress: ProcessingProgress) => void) => () => void;
 }
+
+type UpdateStatus =
+  | { state: 'checking' }
+  | { state: 'available'; version: string }
+  | { state: 'none' }
+  | { state: 'downloading'; percent: number }
+  | { state: 'downloaded'; version: string }
+  | { state: 'error'; message: string };
 
 interface AppSettings {
   invoiceFolder: string;
   approvalFolder: string;
   anthropicApiKey: string;
   defaultMonth: string;
+  selectedDepartmentId: string;
+}
+
+interface Department {
+  id: string;
+  name: string;
+  color: string;
+  icon: string;
 }
 
 interface ScanResult {

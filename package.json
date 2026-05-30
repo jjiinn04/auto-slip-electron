@@ -1,6 +1,6 @@
 {
   "name": "auto-slip",
-  "version": "1.0.0",
+  "version": "1.3.0",
   "description": "월마감 전표 자동화 데스크톱 앱",
   "type": "module",
   "main": "dist-electron/main.js",
@@ -17,6 +17,7 @@
   "dependencies": {
     "better-sqlite3": "^11.8.1",
     "electron-store": "^10.0.1",
+    "electron-updater": "^6.8.3",
     "exceljs": "^4.4.0",
     "fast-xml-parser": "^5.8.0",
     "lucide-react": "^1.16.0",
@@ -51,6 +52,13 @@
   "build": {
     "appId": "com.autoslip.app",
     "productName": "AutoSlip",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "jjiinn04",
+        "repo": "auto-slip-electron"
+      }
+    ],
     "files": [
       "dist/**/*",
       "dist-electron/**/*"
@@ -59,7 +67,10 @@
       "node_modules/better-sqlite3/**"
     ],
     "mac": {
-      "target": "dmg"
+      "target": [
+        "dmg",
+        "zip"
+      ]
     },
     "win": {
       "target": "nsis",
@@ -68,7 +79,9 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "installerLanguages": ["ko"],
+      "installerLanguages": [
+        "ko"
+      ],
       "language": "1042"
     }
   }

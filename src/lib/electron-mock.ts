@@ -5,7 +5,14 @@ const mockSettings: AppSettings = {
   approvalFolder: '',
   anthropicApiKey: '',
   defaultMonth: '2026-05',
+  selectedDepartmentId: 'it-system',
 };
+
+const mockDepartments: Department[] = [
+  { id: 'it-system', name: 'IT시스템팀', color: '#3b82f6', icon: 'Server' },
+  { id: 'finance', name: '재무팀', color: '#10b981', icon: 'Landmark' },
+  { id: 'general-affairs', name: '총무팀', color: '#f59e0b', icon: 'Building2' },
+];
 
 const mockAPI: ElectronAPI = {
   selectFolder: async () => prompt('폴더 경로 입력:') || null,
@@ -13,6 +20,13 @@ const mockAPI: ElectronAPI = {
   getSettings: async () => ({ ...mockSettings }),
   setSettings: async (data) => {
     Object.assign(mockSettings, data);
+    return true;
+  },
+  getDepartments: async () => [...mockDepartments],
+  getCurrentDepartment: async () =>
+    mockDepartments.find((d) => d.id === mockSettings.selectedDepartmentId) ?? null,
+  selectDepartment: async (id) => {
+    mockSettings.selectedDepartmentId = id;
     return true;
   },
   scanFolder: async () => ({
@@ -89,6 +103,10 @@ const mockAPI: ElectronAPI = {
   updateApprovalMasterFile: async () => null,
   autoMatchApprovalMasters: async () => ({ matched: 0, skipped: 0 }),
   exportExcel: async (_month, type) => ({ file_path: `~/Desktop/autoslip_${type}.xlsx` }),
+  getAppVersion: async () => '1.0.0 (dev)',
+  checkForUpdates: async () => ({ ok: false, message: '개발 모드에서는 업데이트 확인을 사용할 수 없습니다.' }),
+  quitAndInstall: async () => {},
+  onUpdateStatus: () => () => {},
   onProcessingProgress: () => () => {},
 };
 

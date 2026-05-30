@@ -178,7 +178,7 @@ export function MatchingPage() {
                           className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
                         />
                       </td>
-                      <td className="px-4 py-2 text-gray-600">{m.file_name}</td>
+                      <td className="px-4 py-2 text-gray-600" title={m.file_name}>{m.file_name}</td>
                       <td className="px-4 py-2">
                         <input
                           type="text"
@@ -204,7 +204,12 @@ export function MatchingPage() {
                       <td className="px-4 py-2.5 text-gray-600">{m.match_description || '-'}</td>
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-1">
-                          <span className="text-gray-700 text-xs truncate max-w-48">{m.file_name}</span>
+                          <span className="group relative inline-block max-w-48">
+                            <span className="block truncate text-gray-700 text-xs">{m.file_name}</span>
+                            <span className="pointer-events-none absolute left-0 top-full z-20 mt-1 hidden whitespace-nowrap rounded-md bg-gray-900 px-2 py-1 text-xs text-white shadow-lg group-hover:block">
+                              {m.file_name}
+                            </span>
+                          </span>
                           <button onClick={() => getAPI().openFile(m.file_path)} className="p-0.5 text-gray-400 hover:text-blue-600" title="파일 열기">
                             <ExternalLink size={12} />
                           </button>

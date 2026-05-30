@@ -6,6 +6,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 env:
   ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
 
@@ -23,11 +26,14 @@ jobs:
         run: npm install
 
       - name: Build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           npx vite build
-          npx electron-builder --win --publish never
+          npx electron-builder --win --publish ${{ startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}
 
       - name: Upload Windows installer
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: actions/upload-artifact@v4
         with:
           name: AutoSlip-Windows
@@ -46,11 +52,14 @@ jobs:
         run: npm install
 
       - name: Build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           npx vite build
-          npx electron-builder --mac --publish never
+          npx electron-builder --mac --publish ${{ startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}
 
       - name: Upload Mac installer
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: actions/upload-artifact@v4
         with:
           name: AutoSlip-Mac

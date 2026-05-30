@@ -4,7 +4,7 @@ import { useAppStore } from '../stores/useAppStore';
 import { formatAmount } from '../lib/format';
 import {
   FileText, ChevronDown, ChevronRight, Trash2, Link, Unlink,
-  ExternalLink, FolderOpen, Paperclip, FileSpreadsheet, Download,
+  ExternalLink, FolderOpen, Paperclip, FileSpreadsheet, Download, Wand2,
 } from 'lucide-react';
 
 export function InvoicesPage() {
@@ -15,8 +15,24 @@ export function InvoicesPage() {
   const [matchingId, setMatchingId] = useState<number | null>(null);
   const [unmatchedDocs, setUnmatchedDocs] = useState<Approval[]>([]);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [autoMatching, setAutoMatching] = useState(false);
 
   const reload = () => getAPI().getInvoices(month).then(setInvoices);
+
+  const handleAutoMatch = async () => {
+    const folder = await getAPI().selectFolder();
+    if (!folder) return;
+    setAutoMatching(true);
+    try {
+      const result = await getAPI().autoMatchApprovalMasters(folder);
+      alert(`기안문서 자동매핑 완료: ${result.matched}건 매핑, ${result.skipped}건 이미 등록`);
+      reload();
+    } catch (err) {
+      alert(`기안문서 자동매핑 실패: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setAutoMatching(false);
+    }
+  };
 
   useEffect(() => {
     reload();
@@ -83,6 +99,16 @@ export function InvoicesPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">세금계산서 목록</h2>
         <div className="flex items-center gap-2">
+          {invoices.length > 0 && (
+            <button
+              onClick={handleAutoMatch}
+              disabled={autoMatching}
+              className="flex items-center gap-1 px-3 py-2 text-sm bg-amber-100 text-amber-800 rounded-lg font-medium hover:bg-amber-200 disabled:opacity-50 transition-colors"
+              title="기안문서 폴더를 선택하면 파일명으로 세금계산서와 자동 매칭합니다"
+            >
+              <Wand2 size={14} /> {autoMatching ? '매핑 중…' : '기안 자동매핑'}
+            </button>
+          )}
           {invoices.length > 0 && (
             <div className="relative">
               <button
@@ -410,7 +436,13 @@ function MasterSection({
             <div key={m.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-emerald-200">
               <div className="flex items-center gap-2">
                 <Paperclip size={10} className="text-emerald-500" />
-                <span className="text-sm text-gray-800">{m.file_name}</span>
+                <button
+                  onClick={(e) => onOpenFile(e, m.file_path)}
+                  className="text-sm text-gray-800 hover:text-blue-600 hover:underline transition-colors"
+                  title="클릭하여 기안문서 열기"
+                >
+                  {m.file_name}
+                </button>
                 <span className="text-xs text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
                   {m.match_supplier}{m.match_description ? ` · ${m.match_description}` : ''}
                 </span>

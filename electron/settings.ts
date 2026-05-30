@@ -5,6 +5,7 @@ export interface AppSettings {
   approvalFolder: string;
   anthropicApiKey: string;
   defaultMonth: string;
+  selectedDepartmentId: string;
 }
 
 const defaults: AppSettings = {
@@ -12,6 +13,7 @@ const defaults: AppSettings = {
   approvalFolder: '',
   anthropicApiKey: '',
   defaultMonth: '',
+  selectedDepartmentId: '',
 };
 
 export function createSettingsStore() {

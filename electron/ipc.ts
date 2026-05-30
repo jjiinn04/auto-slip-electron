@@ -702,7 +702,7 @@ export function registerIpcHandlers(
     const files = scanFolderFiles(folderPath);
     const docFiles = files.filter(f => ['pdf', 'image'].includes(f.type) || f.name.match(/\.(hwp|hwpx|doc|docx|xlsx|xls)$/i));
 
-    const invoices = db.prepare('SELECT DISTINCT description, supplier_name FROM tax_invoices WHERE description IS NOT NULL AND description != ""').all() as any[];
+    const invoices = db.prepare('SELECT DISTINCT description, supplier_name FROM tax_invoices WHERE description IS NOT NULL AND description != \'\'').all() as any[];
     const existingMasters = db.prepare('SELECT file_path FROM approval_masters').all() as any[];
     const existingPaths = new Set(existingMasters.map((m: any) => m.file_path));
 

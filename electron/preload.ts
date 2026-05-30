@@ -7,6 +7,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (data: Record<string, unknown>) => ipcRenderer.invoke('settings:set', data),
 
+  getDepartments: () => ipcRenderer.invoke('department:list'),
+  getCurrentDepartment: () => ipcRenderer.invoke('department:getCurrent'),
+  selectDepartment: (id: string) => ipcRenderer.invoke('department:select', id),
+
   scanFolder: (folderPath: string) => ipcRenderer.invoke('folder:scan', folderPath),
   processFiles: (invoiceFolder: string, approvalFolder: string, month: string) =>
     ipcRenderer.invoke('files:process', invoiceFolder, approvalFolder, month),
@@ -41,6 +45,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   autoMatchApprovalMasters: (folderPath: string) => ipcRenderer.invoke('approvalMasters:autoMatch', folderPath),
 
   exportExcel: (month: string, type: string) => ipcRenderer.invoke('export:excel', month, type),
+
+  getAppVersion: () => ipcRenderer.invoke('update:getVersion'),
+  checkForUpdates: () => ipcRenderer.invoke('update:check'),
+  quitAndInstall: () => ipcRenderer.invoke('update:quitAndInstall'),
+  onUpdateStatus: (callback: (status: unknown) => void) => {
+    const handler = (_event: unknown, status: unknown) => callback(status);
+    ipcRenderer.on('update:status', handler);
+    return () => ipcRenderer.removeListener('update:status', handler);
+  },
 
   onProcessingProgress: (callback: (progress: { step: string; current: number; total: number }) => void) => {
     const handler = (_event: unknown, progress: { step: string; current: number; total: number }) => callback(progress);

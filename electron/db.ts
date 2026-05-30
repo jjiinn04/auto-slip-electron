@@ -3,12 +3,41 @@ import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
 
-export function setupDatabase(): Database.Database {
+function legacyDbPath(): string {
+  return path.join(app.getPath('userData'), 'data', 'autoslip.db');
+}
+
+function workspaceDbPath(departmentId: string): string {
+  return path.join(app.getPath('userData'), 'workspaces', `${departmentId}.db`);
+}
+
+// 부서 최초 선택 시 기존 단일-부서 DB를 그 부서 워크스페이스로 흡수한다.
+// 이미 부서 워크스페이스가 있거나 레거시 DB가 없으면 아무것도 하지 않는다.
+export function absorbLegacyData(departmentId: string): boolean {
+  const legacy = legacyDbPath();
+  const target = workspaceDbPath(departmentId);
+  if (fs.existsSync(target)) return false;
+  if (!fs.existsSync(legacy)) return false;
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  const src = new Database(legacy, { readonly: true });
+  try {
+    src.exec(`VACUUM INTO '${target.replace(/'/g, "''")}'`);
+  } finally {
+    src.close();
+  }
+  return true;
+}
+
+export function setupDatabase(departmentId?: string): Database.Database {
   const userDataPath = app.getPath('userData');
-  const dbDir = path.join(userDataPath, 'data');
+  const dbDir = departmentId
+    ? path.join(userDataPath, 'workspaces')
+    : path.join(userDataPath, 'data');
   fs.mkdirSync(dbDir, { recursive: true });
 
-  const dbPath = path.join(dbDir, 'autoslip.db');
+  const dbPath = departmentId
+    ? path.join(dbDir, `${departmentId}.db`)
+    : path.join(dbDir, 'autoslip.db');
   console.log('[DB] path:', dbPath);
   const db = new Database(dbPath);
 
