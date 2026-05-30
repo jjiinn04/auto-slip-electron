@@ -133,7 +133,7 @@ export async function generateMonthlyCostExcel(
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('IT시스템 월별비용');
 
-  const years = [baseYear, baseYear - 1, baseYear - 2];
+  const years = [baseYear, baseYear - 1];
   const shortYears = years.map(y => String(y).slice(2));
 
   // Column widths

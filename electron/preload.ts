@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('approvalMasters:update', id, data),
   deleteApprovalMaster: (id: number) => ipcRenderer.invoke('approvalMasters:delete', id),
   updateApprovalMasterFile: (id: number) => ipcRenderer.invoke('approvalMasters:updateFile', id),
+  autoMatchApprovalMasters: (folderPath: string) => ipcRenderer.invoke('approvalMasters:autoMatch', folderPath),
 
   exportExcel: (month: string, type: string) => ipcRenderer.invoke('export:excel', month, type),
 

@@ -34,7 +34,9 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
     mainWindow?.focus();
-    mainWindow?.webContents.openDevTools({ mode: 'bottom' });
+    if (process.env.VITE_DEV_SERVER_URL) {
+      mainWindow?.webContents.openDevTools({ mode: 'bottom' });
+    }
   });
 
   mainWindow.on('closed', () => {

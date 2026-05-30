@@ -29,6 +29,7 @@ interface ElectronAPI {
   updateApprovalMaster: (id: number, data: { match_supplier: string; match_description: string; memo: string }) => Promise<boolean>;
   deleteApprovalMaster: (id: number) => Promise<boolean>;
   updateApprovalMasterFile: (id: number) => Promise<{ file_name: string; file_path: string; file_type: string } | null>;
+  autoMatchApprovalMasters: (folderPath: string) => Promise<{ matched: number; skipped: number }>;
 
   exportExcel: (month: string, type: string) => Promise<ExportResult>;
   onProcessingProgress: (callback: (progress: ProcessingProgress) => void) => () => void;

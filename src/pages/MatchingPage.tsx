@@ -2,7 +2,7 @@ import { getAPI } from '../lib/electron-mock';
 import { useEffect, useState } from 'react';
 import { formatAmount } from '../lib/format';
 import {
-  Plus, Trash2, Edit3, ExternalLink, FolderOpen, FileText, Save, X, RefreshCw,
+  Plus, Trash2, Edit3, ExternalLink, FolderOpen, FileText, Save, X, RefreshCw, Wand2,
 } from 'lucide-react';
 
 export function MatchingPage() {
@@ -63,12 +63,26 @@ export function MatchingPage() {
           <h2 className="text-2xl font-bold text-gray-900">기안문서 관리</h2>
           <p className="text-sm text-gray-500 mt-1">공급자+적요 기준으로 등록하면 세금계산서에 자동 매칭됩니다</p>
         </div>
-        <button
-          onClick={() => setAdding(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-        >
-          <Plus size={16} /> 기안문서 등록
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={async () => {
+              const folder = await getAPI().selectFolder();
+              if (!folder) return;
+              const result = await getAPI().autoMatchApprovalMasters(folder);
+              alert(`자동매핑 완료: ${result.matched}건 매핑, ${result.skipped}건 이미 등록`);
+              reload();
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-800 rounded-lg text-sm font-medium hover:bg-amber-200 transition-colors"
+          >
+            <Wand2 size={16} /> 자동매핑
+          </button>
+          <button
+            onClick={() => setAdding(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+          >
+            <Plus size={16} /> 기안문서 등록
+          </button>
+        </div>
       </div>
 
       {adding && (

@@ -87,6 +87,7 @@ const mockAPI: ElectronAPI = {
   updateApprovalMaster: async () => true,
   deleteApprovalMaster: async () => true,
   updateApprovalMasterFile: async () => null,
+  autoMatchApprovalMasters: async () => ({ matched: 0, skipped: 0 }),
   exportExcel: async (_month, type) => ({ file_path: `~/Desktop/autoslip_${type}.xlsx` }),
   onProcessingProgress: () => () => {},
 };

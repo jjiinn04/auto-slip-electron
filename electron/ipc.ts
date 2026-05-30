@@ -15,7 +15,45 @@ interface ScannedFile {
 }
 
 function normalize(s: string): string {
-  return s.toLowerCase().replace(/[-_\s·.]/g, '');
+  return s.normalize('NFC').toLowerCase().replace(/[-_\s·.]/g, '');
+}
+
+const MATCH_STOPWORDS = new Set([
+  '유지보수', '비용', '서비스', '임대', '임대료', '사용료', '도입', '구독', '갱신',
+  '통합', '대응', '추가', '통신', '회선', '장비', '시스템', '솔루션', '인증서',
+  '관리', 'user', '그룹인터넷', '롯데지에프알', '롯데이노베이트', '라온아이티',
+]);
+
+function tokenize(s: string): string[] {
+  return s
+    .normalize('NFC')
+    .toLowerCase()
+    .split(/[\s()/_·,]+/)
+    .map(t => t.replace(/[-.]/g, ''))
+    .filter(t => t.length >= 2 && !/^\d+$/.test(t) && !MATCH_STOPWORDS.has(t));
+}
+
+function tokenOverlapScore(fileTokens: string[], descTokens: string[]): number {
+  let score = 0;
+  for (const ft of fileTokens) {
+    for (const dt of descTokens) {
+      if (ft === dt) {
+        score += ft.length;
+        break;
+      }
+      if (ft.includes(dt) || dt.includes(ft)) {
+        const shorter = ft.length <= dt.length ? ft : dt;
+        const longer = ft.length <= dt.length ? dt : ft;
+        const hangul = /[가-힣]/.test(shorter);
+        if (shorter.length >= 4 || (hangul && shorter.length >= 2) ||
+            (shorter.length === 3 && longer.startsWith(shorter))) {
+          score += shorter.length;
+          break;
+        }
+      }
+    }
+  }
+  return score;
 }
 
 function detectFileType(fileName: string): ScannedFile['type'] {
@@ -114,7 +152,9 @@ export function registerIpcHandlers(
     db.prepare('DELETE FROM approval_documents WHERE month = ?').run(month);
 
     let parsedCount = 0;
+    let skippedCount = 0;
     const errors: string[] = [];
+    const seenInvoiceNumbers = new Set<string>();
 
     for (let i = 0; i < xmlFiles.length; i++) {
       const file = xmlFiles[i];
@@ -122,6 +162,12 @@ export function registerIpcHandlers(
 
       try {
         const result = parseTaxInvoiceXML(file.path);
+        const invoiceNumber = (result.invoice_number || '').trim();
+        if (invoiceNumber && seenInvoiceNumbers.has(invoiceNumber)) {
+          skippedCount++;
+          continue;
+        }
+        if (invoiceNumber) seenInvoiceNumbers.add(invoiceNumber);
         db.transaction(() => {
           const inv = insertInvoice.run(
             result.invoice_number,
@@ -186,7 +232,7 @@ export function registerIpcHandlers(
     db.prepare(`
       INSERT INTO processing_logs (month, action, description, file_count)
       VALUES (?, 'process', ?, ?)
-    `).run(month, `XML ${parsedCount}건, 기안 ${docFiles.length}건, 매칭 ${matchCount}건`, files.length);
+    `).run(month, `XML ${parsedCount}건${skippedCount > 0 ? ` (중복 ${skippedCount}건 제외)` : ''}, 기안 ${docFiles.length}건, 매칭 ${matchCount}건`, files.length);
 
     sendProgress('완료', 1, 1);
 
@@ -357,6 +403,7 @@ export function registerIpcHandlers(
   });
 
   ipcMain.handle('costItems:delete', (_event, id: number) => {
+    db.prepare('DELETE FROM cost_item_amounts WHERE cost_item_id=?').run(id);
     db.prepare('DELETE FROM cost_items WHERE id=?').run(id);
     return true;
   });
@@ -647,6 +694,59 @@ export function registerIpcHandlers(
       .run(fileName, filePath, fileType, id);
 
     return { file_name: fileName, file_path: filePath, file_type: fileType };
+  });
+
+  ipcMain.handle('approvalMasters:autoMatch', (_event, folderPath: string) => {
+    if (!folderPath || !fs.existsSync(folderPath)) return { matched: 0, skipped: 0 };
+
+    const files = scanFolderFiles(folderPath);
+    const docFiles = files.filter(f => ['pdf', 'image'].includes(f.type) || f.name.match(/\.(hwp|hwpx|doc|docx|xlsx|xls)$/i));
+
+    const invoices = db.prepare('SELECT DISTINCT description, supplier_name FROM tax_invoices WHERE description IS NOT NULL AND description != ""').all() as any[];
+    const existingMasters = db.prepare('SELECT file_path FROM approval_masters').all() as any[];
+    const existingPaths = new Set(existingMasters.map((m: any) => m.file_path));
+
+    let matched = 0;
+    let skipped = 0;
+
+    const insertMaster = db.prepare(
+      'INSERT INTO approval_masters (file_name, file_path, file_type, match_supplier, match_description, memo) VALUES (?,?,?,?,?,?)'
+    );
+
+    for (const file of docFiles) {
+      if (existingPaths.has(file.path)) { skipped++; continue; }
+
+      const baseName = path.parse(file.name).name;
+      const normalizedFileName = normalize(baseName);
+
+      let hit: any = null;
+      for (const inv of invoices) {
+        const normalizedDesc = normalize(inv.description);
+        if (normalizedFileName.includes(normalizedDesc) || normalizedDesc.includes(normalizedFileName)) {
+          hit = inv;
+          break;
+        }
+      }
+
+      if (!hit) {
+        const fileTokens = tokenize(baseName);
+        let best: any = null;
+        let bestScore = 0;
+        for (const inv of invoices) {
+          const score = tokenOverlapScore(fileTokens, tokenize(inv.description));
+          if (score > bestScore) { bestScore = score; best = inv; }
+        }
+        if (best && bestScore >= 2) hit = best;
+      }
+
+      if (hit) {
+        insertMaster.run(file.name, file.path, file.type, hit.supplier_name, hit.description, '자동매핑');
+        existingPaths.add(file.path);
+        matched++;
+      }
+    }
+
+    return { matched, skipped };
   });
 
   ipcMain.handle('export:excel', async (_event, month: string, type: string) => {
