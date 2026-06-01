@@ -2,10 +2,12 @@ import { ipcMain, BrowserWindow, shell, dialog } from 'electron';
 import Database from 'better-sqlite3';
 import ExcelJS from 'exceljs';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { SettingsStore } from './settings';
 import { parseTaxInvoiceXML, checkEncrypted } from './xml-parser';
 import { generateExcel, generateMonthlyCostExcel } from './excel-generator';
+import { buildTaxPdfIndex, mergeBundle, approvalNoFromSourceFile, type BundleItem } from './print-bundle';
 
 interface ScannedFile {
   name: string;
@@ -339,6 +341,63 @@ export function registerIpcHandlers(
       db.prepare('DELETE FROM tax_invoices WHERE id = ?').run(id);
     })();
     return true;
+  });
+
+  ipcMain.handle('invoices:print', async (_event, ids: number[]) => {
+    if (!ids || ids.length === 0) return { ok: false, message: '선택된 항목이 없습니다.' };
+
+    const placeholders = ids.map(() => '?').join(',');
+    const invoices = db.prepare(
+      `SELECT * FROM tax_invoices WHERE id IN (${placeholders})`
+    ).all(...ids) as any[];
+    const masters = db.prepare('SELECT * FROM approval_masters').all() as any[];
+
+    const invoiceFolder = settings.get('invoiceFolder') as string | undefined;
+    if (!invoiceFolder) return { ok: false, message: '세금계산서 폴더가 설정되지 않았습니다.' };
+
+    // 폴더 내 세금계산서 PDF를 승인번호로 인덱싱
+    const taxIndex = await buildTaxPdfIndex(invoiceFolder);
+
+    const items: BundleItem[] = [];
+    const missing: string[] = [];
+
+    // ids 순서 유지
+    for (const id of ids) {
+      const inv = invoices.find((i) => i.id === id);
+      if (!inv) continue;
+
+      const key = approvalNoFromSourceFile(inv.source_file || '');
+      const taxPdfPath = key ? taxIndex.get(key) : undefined;
+      if (!taxPdfPath) {
+        missing.push(`${inv.supplier_name || ''} / ${inv.description || ''} (${inv.source_file || `#${id}`})`);
+        continue;
+      }
+
+      // 매칭된 기안 PDF (공급자 + 품명 includes)
+      const approvalPdfPaths: string[] = [];
+      for (const m of masters) {
+        const supplierMatch = inv.supplier_name && m.match_supplier &&
+          (inv.supplier_name.includes(m.match_supplier) || m.match_supplier.includes(inv.supplier_name));
+        if (!supplierMatch) continue;
+        if (m.match_description && !(inv.description && inv.description.includes(m.match_description))) continue;
+        if (m.file_path && fs.existsSync(m.file_path)) approvalPdfPaths.push(m.file_path);
+      }
+
+      items.push({ taxPdfPath, approvalPdfPaths });
+    }
+
+    console.log(`[invoices:print] ids=${ids.length}, bundled=${items.length}, missing=${missing.length}, taxIndex=${taxIndex.size}`);
+
+    if (items.length === 0) {
+      return { ok: false, message: `세금계산서 PDF를 찾지 못했습니다.\n${missing.join('\n')}` };
+    }
+
+    const pdfBytes = await mergeBundle(items);
+    const tmpFile = path.join(os.tmpdir(), `autoslip-print-${Date.now()}.pdf`);
+    fs.writeFileSync(tmpFile, pdfBytes);
+    await shell.openPath(tmpFile);
+
+    return { ok: true, printed: items.length, missing };
   });
 
   ipcMain.handle('invoices:match', (_event, invoiceId: number, approvalId: number) => {

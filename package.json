@@ -1,6 +1,6 @@
 {
   "name": "auto-slip",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "description": "월마감 전표 자동화 데스크톱 앱",
   "type": "module",
   "main": "dist-electron/main.js",
@@ -21,6 +21,8 @@
     "exceljs": "^4.4.0",
     "fast-xml-parser": "^5.8.0",
     "lucide-react": "^1.16.0",
+    "pdf-lib": "^1.17.1",
+    "pdf-parse": "^2.4.5",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.6.1",
@@ -64,7 +66,8 @@
       "dist-electron/**/*"
     ],
     "asarUnpack": [
-      "node_modules/better-sqlite3/**"
+      "node_modules/better-sqlite3/**",
+      "node_modules/@napi-rs/**"
     ],
     "mac": {
       "target": [

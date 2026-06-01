@@ -10,6 +10,7 @@ interface ElectronAPI {
   processFiles: (invoiceFolder: string, approvalFolder: string, month: string) => Promise<ProcessResult>;
   getInvoices: (month: string) => Promise<Invoice[]>;
   getInvoice: (id: number) => Promise<InvoiceDetail>;
+  printInvoices: (ids: number[]) => Promise<PrintResult>;
   deleteInvoice: (id: number) => Promise<boolean>;
   matchInvoice: (invoiceId: number, approvalId: number) => Promise<boolean>;
   unmatchInvoice: (approvalId: number) => Promise<boolean>;
@@ -40,6 +41,13 @@ interface ElectronAPI {
   quitAndInstall: () => Promise<void>;
   onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void;
   onProcessingProgress: (callback: (progress: ProcessingProgress) => void) => () => void;
+}
+
+interface PrintResult {
+  ok: boolean;
+  printed?: number;
+  missing?: string[];
+  message?: string;
 }
 
 type UpdateStatus =

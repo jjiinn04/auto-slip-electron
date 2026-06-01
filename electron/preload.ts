@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   getInvoices: (month: string) => ipcRenderer.invoke('invoices:list', month),
   getInvoice: (id: number) => ipcRenderer.invoke('invoices:get', id),
+  printInvoices: (ids: number[]) => ipcRenderer.invoke('invoices:print', ids),
   deleteInvoice: (id: number) => ipcRenderer.invoke('invoices:delete', id),
   matchInvoice: (invoiceId: number, approvalId: number) => ipcRenderer.invoke('invoices:match', invoiceId, approvalId),
   unmatchInvoice: (approvalId: number) => ipcRenderer.invoke('invoices:unmatch', approvalId),

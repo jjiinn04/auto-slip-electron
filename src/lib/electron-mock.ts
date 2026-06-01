@@ -77,6 +77,7 @@ const mockAPI: ElectronAPI = {
     approvals: [],
     statements: [],
   }),
+  printInvoices: async (ids) => ({ ok: true, printed: ids.length, missing: [] }),
   getApprovals: async () => [
     { id: 1, file_name: 'sd-wan기안.png', file_path: '/기안/sd-wan기안.png', file_type: 'image', classification: 'approval', confidence: 0.9, matched_invoice_id: null, month: '2026-05' },
   ],

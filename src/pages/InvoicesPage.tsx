@@ -4,7 +4,7 @@ import { useAppStore } from '../stores/useAppStore';
 import { formatAmount } from '../lib/format';
 import {
   FileText, ChevronDown, ChevronRight, Trash2, Link, Unlink,
-  ExternalLink, FolderOpen, Paperclip, FileSpreadsheet, Download, Wand2,
+  ExternalLink, FolderOpen, Paperclip, FileSpreadsheet, Download, Wand2, Printer,
 } from 'lucide-react';
 
 export function InvoicesPage() {
@@ -16,8 +16,39 @@ export function InvoicesPage() {
   const [unmatchedDocs, setUnmatchedDocs] = useState<Approval[]>([]);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [autoMatching, setAutoMatching] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [printing, setPrinting] = useState(false);
 
   const reload = () => getAPI().getInvoices(month).then(setInvoices);
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds(prev => (prev.size === invoices.length ? new Set() : new Set(invoices.map(i => i.id))));
+  };
+
+  const handlePrint = async () => {
+    if (selectedIds.size === 0) return;
+    setPrinting(true);
+    try {
+      const result = await getAPI().printInvoices([...selectedIds]);
+      if (!result.ok) {
+        alert(`출력 실패\n${result.message ?? ''}`);
+      } else if (result.missing && result.missing.length > 0) {
+        alert(`${result.printed}건 출력. 세금계산서 PDF를 찾지 못한 항목:\n${result.missing.join('\n')}`);
+      }
+    } catch (err) {
+      alert(`출력 실패: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setPrinting(false);
+    }
+  };
 
   const handleAutoMatch = async () => {
     const folder = await getAPI().selectFolder();
@@ -35,6 +66,7 @@ export function InvoicesPage() {
   };
 
   useEffect(() => {
+    setSelectedIds(new Set());
     reload();
   }, [month]);
 
@@ -99,6 +131,16 @@ export function InvoicesPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">세금계산서 목록</h2>
         <div className="flex items-center gap-2">
+          {selectedIds.size > 0 && (
+            <button
+              onClick={handlePrint}
+              disabled={printing}
+              className="flex items-center gap-1 px-3 py-2 text-sm bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+              title="선택한 세금계산서 PDF와 매칭된 기안문서를 한 PDF로 묶어 출력합니다"
+            >
+              <Printer size={14} /> {printing ? '준비 중…' : `선택 출력 (${selectedIds.size})`}
+            </button>
+          )}
           {invoices.length > 0 && (
             <button
               onClick={handleAutoMatch}
@@ -156,6 +198,14 @@ export function InvoicesPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-800 text-left text-xs font-medium text-white">
+                <th className="w-8 px-3 py-3 text-center">
+                  <input
+                    type="checkbox"
+                    checked={invoices.length > 0 && selectedIds.size === invoices.length}
+                    onChange={toggleSelectAll}
+                    className="cursor-pointer"
+                  />
+                </th>
                 <th className="w-8 px-3 py-3"></th>
                 <th className="px-4 py-3">발행일</th>
                 <th className="px-4 py-3">공급자</th>
@@ -177,6 +227,8 @@ export function InvoicesPage() {
                   detail={expandedId === inv.id ? detail : null}
                   matchingId={matchingId}
                   unmatchedDocs={unmatchedDocs}
+                  selected={selectedIds.has(inv.id)}
+                  onToggleSelect={toggleSelect}
                   onExpand={handleExpand}
                   onDelete={handleDelete}
                   onStartMatch={handleStartMatch}
@@ -197,7 +249,7 @@ export function InvoicesPage() {
 }
 
 function InvoiceRow({
-  inv, expanded, detail, matchingId, unmatchedDocs,
+  inv, expanded, detail, matchingId, unmatchedDocs, selected, onToggleSelect,
   onExpand, onDelete, onStartMatch, onMatch, onUnmatch, onCancelMatch,
   onOpenFile, onShowInFolder, onReload,
 }: {
@@ -206,6 +258,8 @@ function InvoiceRow({
   detail: InvoiceDetail | null;
   matchingId: number | null;
   unmatchedDocs: Approval[];
+  selected: boolean;
+  onToggleSelect: (id: number) => void;
   onExpand: (id: number) => void;
   onDelete: (e: React.MouseEvent, id: number) => void;
   onStartMatch: (e: React.MouseEvent, id: number) => void;
@@ -221,6 +275,14 @@ function InvoiceRow({
   return (
     <>
       <tr className="hover:bg-slate-50 cursor-pointer group" onClick={() => onExpand(inv.id)}>
+        <td className="px-3 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggleSelect(inv.id)}
+            className="cursor-pointer"
+          />
+        </td>
         <td className="px-3 py-2.5 text-gray-400">
           {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
         </td>
@@ -268,7 +330,7 @@ function InvoiceRow({
 
       {isMatchMode && (
         <tr>
-          <td colSpan={10} className="px-6 py-3 bg-blue-50 border-y border-blue-200">
+          <td colSpan={11} className="px-6 py-3 bg-blue-50 border-y border-blue-200">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-medium text-blue-800">
                 매칭할 거래명세표를 선택하세요
@@ -301,7 +363,7 @@ function InvoiceRow({
 
       {expanded && detail && (
         <tr>
-          <td colSpan={10} className="px-8 py-4 bg-slate-50 border-b border-slate-200">
+          <td colSpan={11} className="px-8 py-4 bg-slate-50 border-b border-slate-200">
             <div className="space-y-4">
               <div className="grid grid-cols-3 gap-4 text-sm">
                 <div>
