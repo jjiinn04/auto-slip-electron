@@ -1,6 +1,6 @@
 {
   "name": "auto-slip",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "월마감 전표 자동화 데스크톱 앱",
   "type": "module",
   "main": "dist-electron/main.js",
@@ -77,8 +77,8 @@
       "icon": "build/icon.png"
     },
     "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
+      "oneClick": true,
+      "perMachine": false,
       "installerLanguages": [
         "ko"
       ],
