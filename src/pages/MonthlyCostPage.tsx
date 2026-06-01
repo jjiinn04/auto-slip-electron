@@ -126,7 +126,7 @@ export function MonthlyCostPage() {
   const isMissingMonthly = (item: MonthlyCostItem, year: number, month: number): boolean => {
     if (item.billing_cycle !== 'monthly') return false;
     if (year !== baseYear) return false;
-    if (year > nowYear || (year === nowYear && month > currentMonth)) return false;
+    if (year > nowYear || (year === nowYear && month >= currentMonth)) return false;
     const val = item.yearData[year]?.months[month] || 0;
     if (val > 0) return false;
     let prevVal = 0;

@@ -81,6 +81,7 @@ interface ProcessResult {
   parsed: number;
   approvals: number;
   matched: number;
+  costItemsAdded?: number;
   errors: string[];
   total: number;
 }

@@ -86,6 +86,41 @@ function scanFolderFiles(folderPath: string): ScannedFile[] {
   return files;
 }
 
+// 송장 품명(description)에 매칭되는 월별 비용 항목이 없으면 새 항목으로 추가한다.
+// 매칭 로직은 monthlyCost:data 표시 로직과 동일하게 normalize + includes 를 사용한다.
+function autoAddMissingCostItems(db: Database.Database): number {
+  const items = db.prepare('SELECT match_keyword FROM cost_items').all() as any[];
+  const keywords = items
+    .map(i => normalize(i.match_keyword || ''))
+    .filter(Boolean);
+
+  const descriptions = db.prepare(`
+    SELECT description, supplier_name
+    FROM tax_invoices
+    WHERE description IS NOT NULL AND description != ''
+    GROUP BY description
+    ORDER BY supplier_name, description
+  `).all() as any[];
+
+  let order = (db.prepare('SELECT MAX(sort_order) as m FROM cost_items').get() as any)?.m || 0;
+  const insert = db.prepare(
+    'INSERT INTO cost_items (display_name, contract_period, supplier, match_keyword, billing_cycle, sort_order) VALUES (?,?,?,?,?,?)'
+  );
+
+  let added = 0;
+  for (const d of descriptions) {
+    const ndesc = normalize(d.description);
+    if (!ndesc) continue;
+    // 기존 항목 중 하나라도 이 품명에 매칭되면 추가하지 않는다.
+    if (keywords.some(kw => kw && ndesc.includes(kw))) continue;
+    order++;
+    insert.run(d.description, '', d.supplier_name || '', d.description, 'monthly', order);
+    keywords.push(ndesc);
+    added++;
+  }
+  return added;
+}
+
 export function registerIpcHandlers(
   db: Database.Database,
   settings: SettingsStore,
@@ -229,10 +264,15 @@ export function registerIpcHandlers(
     }
     sendProgress('거래명세표 매칭', 1, 1);
 
+    sendProgress('비용항목 추가', 0, 1);
+    const costItemsAdded = autoAddMissingCostItems(db);
+    console.log(`[files:process] cost items auto-added: ${costItemsAdded}`);
+    sendProgress('비용항목 추가', 1, 1);
+
     db.prepare(`
       INSERT INTO processing_logs (month, action, description, file_count)
       VALUES (?, 'process', ?, ?)
-    `).run(month, `XML ${parsedCount}건${skippedCount > 0 ? ` (중복 ${skippedCount}건 제외)` : ''}, 기안 ${docFiles.length}건, 매칭 ${matchCount}건`, files.length);
+    `).run(month, `XML ${parsedCount}건${skippedCount > 0 ? ` (중복 ${skippedCount}건 제외)` : ''}, 기안 ${docFiles.length}건, 매칭 ${matchCount}건${costItemsAdded > 0 ? `, 비용항목 ${costItemsAdded}건 추가` : ''}`, files.length);
 
     sendProgress('완료', 1, 1);
 
@@ -240,6 +280,7 @@ export function registerIpcHandlers(
       parsed: parsedCount,
       approvals: docFiles.length,
       matched: matchCount,
+      costItemsAdded,
       errors,
       total: files.length,
     };
@@ -409,29 +450,9 @@ export function registerIpcHandlers(
   });
 
   ipcMain.handle('costItems:autoDetect', () => {
-    const existing = db.prepare('SELECT match_keyword FROM cost_items').all() as any[];
-    const existingKeys = new Set(existing.map(e => e.match_keyword));
-
-    const descriptions = db.prepare(`
-      SELECT description, supplier_name, supplier_id, COUNT(*) as cnt
-      FROM tax_invoices
-      WHERE description IS NOT NULL AND description != ''
-      GROUP BY description
-      ORDER BY supplier_name, description
-    `).all() as any[];
-
-    let order = (db.prepare('SELECT MAX(sort_order) as m FROM cost_items').get() as any)?.m || 0;
-    let added = 0;
-
-    for (const d of descriptions) {
-      if (!existingKeys.has(d.description)) {
-        order++;
-        db.prepare('INSERT INTO cost_items (display_name, contract_period, supplier, match_keyword, sort_order) VALUES (?,?,?,?,?)')
-          .run(d.description, '', d.supplier_name, d.description, order);
-        added++;
-      }
-    }
-    return { added, total: order };
+    const added = autoAddMissingCostItems(db);
+    const total = (db.prepare('SELECT MAX(sort_order) as m FROM cost_items').get() as any)?.m || 0;
+    return { added, total };
   });
 
   ipcMain.handle('costItems:importFromExcel', async (_event, filePath: string) => {

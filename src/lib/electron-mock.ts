@@ -37,6 +37,7 @@ const mockAPI: ElectronAPI = {
     parsed: 4,
     approvals: 1,
     matched: 0,
+    costItemsAdded: 0,
     errors: [],
     total: 5,
   }),

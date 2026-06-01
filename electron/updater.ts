@@ -16,7 +16,13 @@ type UpdateStatus =
 export function setupAutoUpdater(getWindow: () => BrowserWindow | null) {
   const send = (status: UpdateStatus) => getWindow()?.webContents.send('update:status', status);
 
-  autoUpdater.autoDownload = true;
+  // dev에서도 업데이트 감지를 테스트할 수 있게 강제 설정 (패키징 빌드는 무시)
+  if (!app.isPackaged) {
+    autoUpdater.forceDevUpdateConfig = true;
+    autoUpdater.autoDownload = false; // dev 테스트 중 대용량 다운로드 방지
+  } else {
+    autoUpdater.autoDownload = true;
+  }
   autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on('checking-for-update', () => send({ state: 'checking' }));

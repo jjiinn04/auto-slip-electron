@@ -195,6 +195,12 @@ export function HomePage() {
                 <span className="text-gray-600">자동매칭: </span>
                 <span className="font-medium">{lastResult.matched}건</span>
               </div>
+              {lastResult.costItemsAdded != null && lastResult.costItemsAdded > 0 && (
+                <div>
+                  <span className="text-gray-600">비용항목 추가: </span>
+                  <span className="font-medium">{lastResult.costItemsAdded}건</span>
+                </div>
+              )}
             </div>
             {lastResult.errors.length > 0 && (
               <div className="mt-3">
