@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow, shell, dialog } from 'electron';
+import { ipcMain, BrowserWindow, shell, dialog, app } from 'electron';
 import Database from 'better-sqlite3';
 import ExcelJS from 'exceljs';
 import fs from 'fs';
@@ -355,8 +355,19 @@ export function registerIpcHandlers(
     const invoiceFolder = settings.get('invoiceFolder') as string | undefined;
     if (!invoiceFolder) return { ok: false, message: '세금계산서 폴더가 설정되지 않았습니다.' };
 
-    // 폴더 내 세금계산서 PDF를 승인번호로 인덱싱
-    const taxIndex = await buildTaxPdfIndex(invoiceFolder);
+    // 선택된 세금계산서의 승인번호 후보 (OCR 근사매칭용)
+    const candidateKeys = invoices
+      .map((inv) => approvalNoFromSourceFile(inv.source_file || ''))
+      .filter(Boolean);
+
+    // OCR traineddata 경로 (스캔 PDF 폴백용)
+    const langPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'ocr')
+      : path.join(app.getAppPath(), 'resources', 'ocr');
+    const ocr = fs.existsSync(path.join(langPath, 'kor.traineddata')) ? { langPath } : undefined;
+
+    // 폴더 내 세금계산서 PDF를 승인번호로 인덱싱 (텍스트 우선, 스캔은 OCR 폴백)
+    const taxIndex = await buildTaxPdfIndex(invoiceFolder, candidateKeys, ocr);
 
     const items: BundleItem[] = [];
     const missing: string[] = [];

@@ -1,6 +1,6 @@
 {
   "name": "auto-slip",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "월마감 전표 자동화 데스크톱 앱",
   "type": "module",
   "main": "dist-electron/main.js",
@@ -26,6 +26,7 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.6.1",
+    "tesseract.js": "^7.0.0",
     "zustand": "^5.0.13"
   },
   "devDependencies": {
@@ -63,11 +64,27 @@
     ],
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "!**/*.map",
+      "!**/tesseract.js-core/*.wasm.js",
+      "!**/tesseract.js-core/tesseract-core.wasm",
+      "!**/tesseract.js-core/tesseract-core.js",
+      "!**/tesseract.js-core/tesseract-core-simd.wasm",
+      "!**/tesseract.js-core/tesseract-core-simd.js",
+      "!**/tesseract.js-core/tesseract-core-relaxedsimd.wasm",
+      "!**/tesseract.js-core/tesseract-core-relaxedsimd.js"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/ocr",
+        "to": "ocr"
+      }
     ],
     "asarUnpack": [
       "node_modules/better-sqlite3/**",
-      "node_modules/@napi-rs/**"
+      "**/@napi-rs/**",
+      "**/tesseract.js/**",
+      "**/tesseract.js-core/**"
     ],
     "mac": {
       "target": [

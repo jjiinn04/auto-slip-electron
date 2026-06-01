@@ -12,7 +12,7 @@ export default defineConfig({
         vite: {
           build: {
             rollupOptions: {
-              external: ['better-sqlite3', 'electron-store', 'exceljs', 'fast-xml-parser', 'electron-updater', 'pdf-parse', 'pdf-lib'],
+              external: ['better-sqlite3', 'electron-store', 'exceljs', 'fast-xml-parser', 'electron-updater', 'pdf-parse', 'pdf-lib', 'tesseract.js', '@napi-rs/canvas', 'pdfjs-dist', 'pdfjs-dist/legacy/build/pdf.mjs'],
             },
           },
         },
