@@ -666,6 +666,15 @@ export function registerIpcHandlers(
     return r.lastInsertRowid;
   });
 
+  ipcMain.handle('costItems:reorder', (_event, orderedIds: number[]) => {
+    const upd = db.prepare('UPDATE cost_items SET sort_order=? WHERE id=?');
+    const tx = db.transaction((ids: number[]) => {
+      ids.forEach((id, idx) => upd.run(idx + 1, id));
+    });
+    tx(orderedIds);
+    return true;
+  });
+
   ipcMain.handle('costItems:delete', (_event, id: number) => {
     db.prepare('DELETE FROM cost_item_amounts WHERE cost_item_id=?').run(id);
     db.prepare('DELETE FROM cost_items WHERE id=?').run(id);

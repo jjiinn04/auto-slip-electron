@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getCostItems: () => ipcRenderer.invoke('costItems:list'),
   saveCostItem: (item: any) => ipcRenderer.invoke('costItems:save', item),
   deleteCostItem: (id: number) => ipcRenderer.invoke('costItems:delete', id),
+  reorderCostItems: (orderedIds: number[]) => ipcRenderer.invoke('costItems:reorder', orderedIds),
   autoDetectCostItems: () => ipcRenderer.invoke('costItems:autoDetect'),
   importCostItemsFromExcel: (filePath: string) => ipcRenderer.invoke('costItems:importFromExcel', filePath),
   getMonthlyCostData: (baseYear: number) => ipcRenderer.invoke('monthlyCost:data', baseYear),

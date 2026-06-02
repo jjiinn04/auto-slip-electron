@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { Download, Plus, Wand2, Trash2, Save, X, FileSpreadsheet, Pencil } from 'lucide-react';
+import { Download, Plus, Wand2, Trash2, Save, X, FileSpreadsheet, Pencil, ChevronUp, ChevronDown } from 'lucide-react';
 import { formatAmount } from '../lib/format';
 import { getAPI } from '../lib/electron-mock';
 
@@ -82,6 +82,16 @@ export function MonthlyCostPage() {
     setCostItems(prev => prev.map(item =>
       item.id === id ? { ...item, [field]: value, dirty: true } : item
     ));
+  };
+
+  const moveItem = async (index: number, dir: -1 | 1) => {
+    const target = index + dir;
+    if (target < 0 || target >= costItems.length) return;
+    const next = [...costItems];
+    [next[index], next[target]] = [next[target], next[index]];
+    setCostItems(next);
+    await getAPI().reorderCostItems(next.map(i => i.id));
+    loadData();
   };
 
   const handleDeleteItem = async (id: number) => {
@@ -334,7 +344,7 @@ export function MonthlyCostPage() {
                     <th className="py-2.5 px-2 w-[140px]">계약기간</th>
                     <th className="py-2.5 px-2 w-[90px]">거래처</th>
                     <th className="py-2.5 px-2 w-[70px]">주기</th>
-                    <th className="py-2.5 px-1 w-16"></th>
+                    <th className="py-2.5 px-1 w-24 text-center">순서</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -381,6 +391,14 @@ export function MonthlyCostPage() {
                       </td>
                       <td className="py-1 px-1">
                         <div className="flex items-center gap-0.5">
+                          <button onClick={() => moveItem(i, -1)} disabled={i === 0}
+                            className="p-1 text-slate-300 hover:text-blue-600 disabled:opacity-20 disabled:hover:text-slate-300" title="위로">
+                            <ChevronUp size={13} />
+                          </button>
+                          <button onClick={() => moveItem(i, 1)} disabled={i === costItems.length - 1}
+                            className="p-1 text-slate-300 hover:text-blue-600 disabled:opacity-20 disabled:hover:text-slate-300" title="아래로">
+                            <ChevronDown size={13} />
+                          </button>
                           {item.dirty && (
                             <button onClick={() => handleSaveItem(item)} className="p-1 text-blue-500 hover:text-blue-700" title="저장">
                               <Save size={13} />

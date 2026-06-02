@@ -316,6 +316,7 @@ export function InvoicesPage() {
                   />
                 </th>
                 <th className="w-8 px-3 py-3"></th>
+                <th className="px-4 py-3 text-center">순번</th>
                 <th className="px-4 py-3">발행일</th>
                 <th className="px-4 py-3">공급자</th>
                 <th className="px-4 py-3">품명</th>
@@ -331,10 +332,11 @@ export function InvoicesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {invoices.map((inv) => (
+              {invoices.map((inv, idx) => (
                 <InvoiceRow
                   key={inv.id}
                   inv={inv}
+                  seq={idx + 1}
                   expanded={expandedId === inv.id}
                   detail={expandedId === inv.id ? detail : null}
                   matchingId={matchingId}
@@ -354,6 +356,21 @@ export function InvoicesPage() {
                 />
               ))}
             </tbody>
+            <tfoot>
+              <tr className="bg-slate-100 border-t-2 border-slate-300 font-semibold text-gray-900">
+                <td colSpan={6} className="px-4 py-3 text-right">총계</td>
+                <td className="px-4 py-3 text-right tabular-nums">
+                  {formatAmount(invoices.reduce((s, i) => s + i.supply_amount, 0))}
+                </td>
+                <td className="px-4 py-3 text-right tabular-nums">
+                  {formatAmount(invoices.reduce((s, i) => s + i.tax_amount, 0))}
+                </td>
+                <td className="px-4 py-3 text-right tabular-nums">
+                  {formatAmount(invoices.reduce((s, i) => s + i.total_amount, 0))}
+                </td>
+                <td colSpan={6}></td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       )}
@@ -362,11 +379,12 @@ export function InvoicesPage() {
 }
 
 function InvoiceRow({
-  inv, expanded, detail, matchingId, unmatchedDocs, selected, onToggleSelect,
+  inv, seq, expanded, detail, matchingId, unmatchedDocs, selected, onToggleSelect,
   onExpand, onDelete, onStartMatch, onMatch, onUnmatch, onCancelMatch,
   onOpenFile, onShowInFolder, onSetPdf, onReload,
 }: {
   inv: Invoice;
+  seq: number;
   expanded: boolean;
   detail: InvoiceDetail | null;
   matchingId: number | null;
@@ -400,6 +418,7 @@ function InvoiceRow({
         <td className="px-3 py-2.5 text-gray-400">
           {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
         </td>
+        <td className="px-4 py-2.5 text-center tabular-nums text-gray-500">{seq}</td>
         <td className="px-4 py-2.5 text-gray-600">{inv.issue_date}</td>
         <td className="px-4 py-2.5 font-medium text-gray-900">{inv.supplier_name}</td>
         <td className="px-4 py-2.5 text-gray-600">{inv.description}</td>
@@ -501,7 +520,7 @@ function InvoiceRow({
 
       {isMatchMode && (
         <tr>
-          <td colSpan={14} className="px-6 py-3 bg-blue-50 border-y border-blue-200">
+          <td colSpan={15} className="px-6 py-3 bg-blue-50 border-y border-blue-200">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-medium text-blue-800">
                 매칭할 거래명세표를 선택하세요
@@ -534,7 +553,7 @@ function InvoiceRow({
 
       {expanded && detail && (
         <tr>
-          <td colSpan={14} className="px-8 py-4 bg-slate-50 border-b border-slate-200">
+          <td colSpan={15} className="px-8 py-4 bg-slate-50 border-b border-slate-200">
             <div className="space-y-4">
               <div className="grid grid-cols-3 gap-4 text-sm">
                 <div>

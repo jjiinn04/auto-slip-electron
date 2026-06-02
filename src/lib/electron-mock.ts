@@ -92,6 +92,7 @@ const mockAPI: ElectronAPI = {
   getCostItems: async () => [],
   saveCostItem: async () => 1,
   deleteCostItem: async () => true,
+  reorderCostItems: async () => true,
   autoDetectCostItems: async () => ({ added: 0, total: 0 }),
   importCostItemsFromExcel: async () => ({ added: 0, skipped: 0, total: 0, amountsImported: 0 }),
   getMonthlyCostData: async () => ({ items: [], years: [2026, 2025, 2024] }),

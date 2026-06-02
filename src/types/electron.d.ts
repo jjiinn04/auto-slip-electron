@@ -27,6 +27,7 @@ interface ElectronAPI {
   getCostItems: () => Promise<CostItem[]>;
   saveCostItem: (item: Partial<CostItem> & { display_name: string; match_keyword: string; billing_cycle?: string }) => Promise<number>;
   deleteCostItem: (id: number) => Promise<boolean>;
+  reorderCostItems: (orderedIds: number[]) => Promise<boolean>;
   autoDetectCostItems: () => Promise<{ added: number; total: number }>;
   importCostItemsFromExcel: (filePath: string) => Promise<{ added: number; skipped: number; total: number; amountsImported: number }>;
   getMonthlyCostData: (baseYear: number) => Promise<MonthlyCostData>;
