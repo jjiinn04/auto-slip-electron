@@ -532,6 +532,38 @@ export function registerIpcHandlers(
     return { ok: true, total: invoices.length, mapped, newlyMapped, unmapped };
   });
 
+  // 세금계산서 PDF 수기 지정: 파일 선택 → 해당 세금계산서 승인번호 키로 매핑 저장 (OCR 실패한 스캔본용)
+  ipcMain.handle('invoices:setPdfManual', async (_event, invoiceId: number) => {
+    const inv = db.prepare('SELECT id, source_file FROM tax_invoices WHERE id = ?').get(invoiceId) as any;
+    if (!inv) return { ok: false, message: '세금계산서를 찾을 수 없습니다.' };
+    const key = approvalNoFromSourceFile(inv.source_file || '');
+    if (!key) return { ok: false, message: '승인번호를 확인할 수 없어 매핑할 수 없습니다.' };
+
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      title: '세금계산서 PDF 선택',
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    });
+    if (result.canceled || !result.filePaths[0]) return { ok: false, canceled: true };
+
+    const pdfPath = result.filePaths[0];
+    db.prepare(
+      `INSERT INTO tax_pdf_map (approval_key, pdf_path, mapped_at) VALUES (?, ?, datetime('now'))
+       ON CONFLICT(approval_key) DO UPDATE SET pdf_path = excluded.pdf_path, mapped_at = excluded.mapped_at`
+    ).run(key, pdfPath);
+    return { ok: true, file_path: pdfPath };
+  });
+
+  // 세금계산서 PDF 매핑 해제 (오매핑 정정용)
+  ipcMain.handle('invoices:clearPdfMapping', (_event, invoiceId: number) => {
+    const inv = db.prepare('SELECT source_file FROM tax_invoices WHERE id = ?').get(invoiceId) as any;
+    if (!inv) return { ok: false };
+    const key = approvalNoFromSourceFile(inv.source_file || '');
+    if (!key) return { ok: false };
+    db.prepare('DELETE FROM tax_pdf_map WHERE approval_key = ?').run(key);
+    return { ok: true };
+  });
+
   ipcMain.handle('invoices:match', (_event, invoiceId: number, approvalId: number) => {
     db.prepare('UPDATE approval_documents SET matched_invoice_id = ? WHERE id = ?').run(invoiceId, approvalId);
     return true;

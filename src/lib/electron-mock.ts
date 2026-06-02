@@ -83,6 +83,8 @@ const mockAPI: ElectronAPI = {
   printInvoices: async (ids, _mode) => ({ ok: true, printed: ids.length, missing: [], printedIds: [...ids] }),
   markPrinted: async (ids) => ({ ok: true, marked: ids.length }),
   buildPdfMapping: async () => ({ ok: true, total: 2, mapped: 1, newlyMapped: 1, unmapped: ['테스트공급자㈜ / APT관제 부가서비스 (test2.xml)'] }),
+  setPdfManual: async () => ({ ok: true, file_path: '/선택한/세금계산서.pdf' }),
+  clearPdfMapping: async () => ({ ok: true }),
   getApprovals: async () => [
     { id: 1, file_name: 'sd-wan기안.png', file_path: '/기안/sd-wan기안.png', file_type: 'image', classification: 'approval', confidence: 0.9, matched_invoice_id: null, month: '2026-05' },
   ],

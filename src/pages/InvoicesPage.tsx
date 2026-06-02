@@ -75,6 +75,16 @@ export function InvoicesPage() {
     }
   };
 
+  const handleSetPdf = async (invoiceId: number) => {
+    const res = await getAPI().setPdfManual(invoiceId);
+    if (res.canceled) return;
+    if (!res.ok) {
+      alert(`PDF 수기 매핑 실패\n${res.message ?? ''}`);
+      return;
+    }
+    reload();
+  };
+
   const handleBuildMapping = async () => {
     setMapping(true);
     try {
@@ -339,6 +349,7 @@ export function InvoicesPage() {
                   onCancelMatch={() => setMatchingId(null)}
                   onOpenFile={handleOpenFile}
                   onShowInFolder={handleShowInFolder}
+                  onSetPdf={handleSetPdf}
                   onReload={reload}
                 />
               ))}
@@ -353,7 +364,7 @@ export function InvoicesPage() {
 function InvoiceRow({
   inv, expanded, detail, matchingId, unmatchedDocs, selected, onToggleSelect,
   onExpand, onDelete, onStartMatch, onMatch, onUnmatch, onCancelMatch,
-  onOpenFile, onShowInFolder, onReload,
+  onOpenFile, onShowInFolder, onSetPdf, onReload,
 }: {
   inv: Invoice;
   expanded: boolean;
@@ -370,6 +381,7 @@ function InvoiceRow({
   onCancelMatch: () => void;
   onOpenFile: (e: React.MouseEvent, path: string) => void;
   onShowInFolder: (e: React.MouseEvent, path: string) => void;
+  onSetPdf: (id: number) => void;
   onReload: () => void;
 }) {
   const isMatchMode = matchingId === inv.id;
@@ -419,15 +431,23 @@ function InvoiceRow({
             </span>
           )}
         </td>
-        <td className="px-4 py-2.5 text-center">
+        <td className="px-4 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
           {inv.pdf_mapped ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200">
+            <button
+              onClick={() => onSetPdf(inv.id)}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors"
+              title="클릭하면 PDF를 다시 지정합니다"
+            >
               <ScanLine size={10} /> 매핑됨
-            </span>
+            </button>
           ) : (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-400 border border-slate-200">
-              미매핑
-            </span>
+            <button
+              onClick={() => onSetPdf(inv.id)}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500 hover:bg-teal-50 hover:text-teal-600 hover:border-teal-200 border border-slate-200 transition-colors"
+              title="세금계산서 PDF 파일을 직접 선택해 수기로 매핑합니다"
+            >
+              <Link size={10} /> 수기지정
+            </button>
           )}
         </td>
         <td className="px-4 py-2.5 text-center">

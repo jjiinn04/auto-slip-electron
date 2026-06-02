@@ -20,6 +20,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   printInvoices: (ids: number[], mode?: 'all' | 'tax' | 'approval') => ipcRenderer.invoke('invoices:print', ids, mode),
   markPrinted: (ids: number[]) => ipcRenderer.invoke('invoices:markPrinted', ids),
   buildPdfMapping: (month: string) => ipcRenderer.invoke('invoices:buildMapping', month),
+  setPdfManual: (invoiceId: number) => ipcRenderer.invoke('invoices:setPdfManual', invoiceId),
+  clearPdfMapping: (invoiceId: number) => ipcRenderer.invoke('invoices:clearPdfMapping', invoiceId),
   deleteInvoice: (id: number) => ipcRenderer.invoke('invoices:delete', id),
   matchInvoice: (invoiceId: number, approvalId: number) => ipcRenderer.invoke('invoices:match', invoiceId, approvalId),
   unmatchInvoice: (approvalId: number) => ipcRenderer.invoke('invoices:unmatch', approvalId),

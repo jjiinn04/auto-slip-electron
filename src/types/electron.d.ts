@@ -13,6 +13,8 @@ interface ElectronAPI {
   printInvoices: (ids: number[], mode?: 'all' | 'tax' | 'approval') => Promise<PrintResult>;
   markPrinted: (ids: number[]) => Promise<{ ok: boolean; marked: number }>;
   buildPdfMapping: (month: string) => Promise<PdfMappingResult>;
+  setPdfManual: (invoiceId: number) => Promise<{ ok: boolean; canceled?: boolean; file_path?: string; message?: string }>;
+  clearPdfMapping: (invoiceId: number) => Promise<{ ok: boolean }>;
   deleteInvoice: (id: number) => Promise<boolean>;
   matchInvoice: (invoiceId: number, approvalId: number) => Promise<boolean>;
   unmatchInvoice: (approvalId: number) => Promise<boolean>;
