@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react';
 import { HashRouter, Routes, Route, NavLink } from 'react-router-dom';
-import { FolderOpen, FileSpreadsheet, FileCheck, Settings, LayoutDashboard, Monitor } from 'lucide-react';
+import { FolderOpen, FileSpreadsheet, FileCheck, Settings, LayoutDashboard, Monitor, BarChart3 } from 'lucide-react';
 import { getAPI } from './lib/electron-mock';
 import { HomePage } from './pages/HomePage';
 import { InvoicesPage } from './pages/InvoicesPage';
 import { MatchingPage } from './pages/MatchingPage';
 import { MonthlyCostPage } from './pages/MonthlyCostPage';
+import { DashboardPage } from './pages/DashboardPage';
 import { ExportPage } from './pages/ExportPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { DepartmentSelectPage } from './pages/DepartmentSelectPage';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: '홈' },
+  { to: '/dashboard', icon: BarChart3, label: '비용 대시보드' },
   { to: '/invoices', icon: FileSpreadsheet, label: '세금계산서' },
   { to: '/matching', icon: FileCheck, label: '기안문서' },
   { to: '/monthly-cost', icon: Monitor, label: '월별 비용' },
@@ -71,6 +73,7 @@ export default function App() {
         <main className="flex-1 overflow-auto">
           <Routes>
             <Route path="/" element={<HomePage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/invoices" element={<InvoicesPage />} />
             <Route path="/matching" element={<MatchingPage />} />
             <Route path="/monthly-cost" element={<MonthlyCostPage />} />

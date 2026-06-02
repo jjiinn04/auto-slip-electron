@@ -129,6 +129,19 @@ export function setupDatabase(departmentId?: string): Database.Database {
 
     CREATE INDEX IF NOT EXISTS idx_cost_items_sort ON cost_items(sort_order);
     CREATE INDEX IF NOT EXISTS idx_cost_amounts_item ON cost_item_amounts(cost_item_id, year);
+
+    -- 승인번호(정규화) → 세금계산서 PDF 경로 매핑. 월 재처리로 tax_invoices가 삭제돼도 유지된다.
+    CREATE TABLE IF NOT EXISTS tax_pdf_map (
+      approval_key TEXT PRIMARY KEY,
+      pdf_path TEXT NOT NULL,
+      mapped_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- 승인번호(정규화) → 출력완료 기록. 월 재처리로 tax_invoices가 삭제돼도 유지된다.
+    CREATE TABLE IF NOT EXISTS tax_print_status (
+      approval_key TEXT PRIMARY KEY,
+      printed_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // Migrations for existing databases (must run AFTER table creation)

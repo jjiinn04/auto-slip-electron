@@ -17,7 +17,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   getInvoices: (month: string) => ipcRenderer.invoke('invoices:list', month),
   getInvoice: (id: number) => ipcRenderer.invoke('invoices:get', id),
-  printInvoices: (ids: number[]) => ipcRenderer.invoke('invoices:print', ids),
+  printInvoices: (ids: number[], mode?: 'all' | 'tax' | 'approval') => ipcRenderer.invoke('invoices:print', ids, mode),
+  markPrinted: (ids: number[]) => ipcRenderer.invoke('invoices:markPrinted', ids),
+  buildPdfMapping: (month: string) => ipcRenderer.invoke('invoices:buildMapping', month),
   deleteInvoice: (id: number) => ipcRenderer.invoke('invoices:delete', id),
   matchInvoice: (invoiceId: number, approvalId: number) => ipcRenderer.invoke('invoices:match', invoiceId, approvalId),
   unmatchInvoice: (approvalId: number) => ipcRenderer.invoke('invoices:unmatch', approvalId),
@@ -46,6 +48,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   autoMatchApprovalMasters: (folderPath: string) => ipcRenderer.invoke('approvalMasters:autoMatch', folderPath),
 
   exportExcel: (month: string, type: string) => ipcRenderer.invoke('export:excel', month, type),
+  exportDashboardPdf: (html: string, defaultName: string) =>
+    ipcRenderer.invoke('dashboard:exportPdf', html, defaultName),
 
   getAppVersion: () => ipcRenderer.invoke('update:getVersion'),
   checkForUpdates: () => ipcRenderer.invoke('update:check'),

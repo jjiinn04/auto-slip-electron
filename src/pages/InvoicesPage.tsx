@@ -4,7 +4,7 @@ import { useAppStore } from '../stores/useAppStore';
 import { formatAmount } from '../lib/format';
 import {
   FileText, ChevronDown, ChevronRight, Trash2, Link, Unlink,
-  ExternalLink, FolderOpen, Paperclip, FileSpreadsheet, Download, Wand2, Printer,
+  ExternalLink, FolderOpen, Paperclip, FileSpreadsheet, Download, Wand2, Printer, ScanLine, CheckCircle2,
 } from 'lucide-react';
 
 export function InvoicesPage() {
@@ -15,9 +15,13 @@ export function InvoicesPage() {
   const [matchingId, setMatchingId] = useState<number | null>(null);
   const [unmatchedDocs, setUnmatchedDocs] = useState<Approval[]>([]);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showPrintMenu, setShowPrintMenu] = useState(false);
   const [autoMatching, setAutoMatching] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [printing, setPrinting] = useState(false);
+  const [mapping, setMapping] = useState(false);
+  const [pendingPrintIds, setPendingPrintIds] = useState<number[]>([]);
+  const [markingPrinted, setMarkingPrinted] = useState(false);
 
   const reload = () => getAPI().getInvoices(month).then(setInvoices);
 
@@ -33,20 +37,61 @@ export function InvoicesPage() {
     setSelectedIds(prev => (prev.size === invoices.length ? new Set() : new Set(invoices.map(i => i.id))));
   };
 
-  const handlePrint = async () => {
+  const handlePrint = async (mode: 'all' | 'tax' | 'approval' = 'all') => {
     if (selectedIds.size === 0) return;
+    setShowPrintMenu(false);
     setPrinting(true);
     try {
-      const result = await getAPI().printInvoices([...selectedIds]);
+      const result = await getAPI().printInvoices([...selectedIds], mode);
       if (!result.ok) {
         alert(`출력 실패\n${result.message ?? ''}`);
-      } else if (result.missing && result.missing.length > 0) {
-        alert(`${result.printed}건 출력. 세금계산서 PDF를 찾지 못한 항목:\n${result.missing.join('\n')}`);
+      } else {
+        if (result.missing && result.missing.length > 0) {
+          const what = mode === 'approval' ? '기안 PDF' : '세금계산서 PDF';
+          alert(`${result.printed}건 출력. ${what}를 찾지 못한 항목:\n${result.missing.join('\n')}`);
+        }
+        // 인쇄 완료 확인 단계: PDF를 묶어 연 항목을 출력완료 확인 대상으로 보관
+        setPendingPrintIds(result.printedIds ?? []);
       }
     } catch (err) {
       alert(`출력 실패: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setPrinting(false);
+    }
+  };
+
+  const handleMarkPrinted = async () => {
+    if (pendingPrintIds.length === 0) return;
+    setMarkingPrinted(true);
+    try {
+      await getAPI().markPrinted(pendingPrintIds);
+      setPendingPrintIds([]);
+      setSelectedIds(new Set());
+      reload();
+    } catch (err) {
+      alert(`출력완료 표시 실패: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setMarkingPrinted(false);
+    }
+  };
+
+  const handleBuildMapping = async () => {
+    setMapping(true);
+    try {
+      const result = await getAPI().buildPdfMapping(month);
+      if (!result.ok) {
+        alert(`PDF 매핑 실패\n${result.message ?? ''}`);
+      } else {
+        const unmappedMsg = result.unmapped && result.unmapped.length > 0
+          ? `\n\n미매핑 ${result.unmapped.length}건:\n${result.unmapped.join('\n')}`
+          : '';
+        alert(`PDF 매핑 완료: ${result.mapped}/${result.total}건 매핑 (신규 ${result.newlyMapped}건)${unmappedMsg}`);
+      }
+      reload();
+    } catch (err) {
+      alert(`PDF 매핑 실패: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setMapping(false);
     }
   };
 
@@ -132,14 +177,35 @@ export function InvoicesPage() {
         <h2 className="text-2xl font-bold text-gray-900">세금계산서 목록</h2>
         <div className="flex items-center gap-2">
           {selectedIds.size > 0 && (
-            <button
-              onClick={handlePrint}
-              disabled={printing}
-              className="flex items-center gap-1 px-3 py-2 text-sm bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-              title="선택한 세금계산서 PDF와 매칭된 기안문서를 한 PDF로 묶어 출력합니다"
-            >
-              <Printer size={14} /> {printing ? '준비 중…' : `선택 출력 (${selectedIds.size})`}
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowPrintMenu(v => !v)}
+                disabled={printing}
+                className="flex items-center gap-1 px-3 py-2 text-sm bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                title="선택한 항목을 출력합니다"
+              >
+                <Printer size={14} /> {printing ? '준비 중…' : `선택 출력 (${selectedIds.size})`}
+                <ChevronDown size={14} />
+              </button>
+              {showPrintMenu && (
+                <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 py-1 w-56">
+                  {([
+                    ['all', '통합 출력', '세금계산서 + 매칭된 기안'],
+                    ['tax', '세금계산서만', '세금계산서 PDF만'],
+                    ['approval', '기안만', '매칭된 기안문서만'],
+                  ] as const).map(([m, label, desc]) => (
+                    <button
+                      key={m}
+                      onClick={() => handlePrint(m)}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      <span className="font-medium">{label}</span>
+                      <span className="block text-xs text-gray-400">{desc}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
           {invoices.length > 0 && (
             <button
@@ -149,6 +215,16 @@ export function InvoicesPage() {
               title="기안문서 폴더를 선택하면 파일명으로 세금계산서와 자동 매칭합니다"
             >
               <Wand2 size={14} /> {autoMatching ? '매핑 중…' : '기안 자동매핑'}
+            </button>
+          )}
+          {invoices.length > 0 && (
+            <button
+              onClick={handleBuildMapping}
+              disabled={mapping}
+              className="flex items-center gap-1 px-3 py-2 text-sm bg-teal-100 text-teal-800 rounded-lg font-medium hover:bg-teal-200 disabled:opacity-50 transition-colors"
+              title="세금계산서 PDF를 미리 인덱싱해 출력 시 OCR 없이 빠르게 묶습니다 (미매핑 항목만 OCR)"
+            >
+              <ScanLine size={14} /> {mapping ? '매핑 중…' : 'PDF 매핑'}
             </button>
           )}
           {invoices.length > 0 && (
@@ -187,6 +263,29 @@ export function InvoicesPage() {
         </div>
       </div>
 
+      {pendingPrintIds.length > 0 && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+          <p className="text-sm text-indigo-800">
+            PDF를 열었습니다. 인쇄를 완료하셨으면 <b>{pendingPrintIds.length}건</b>을 출력완료로 표시하세요.
+          </p>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleMarkPrinted}
+              disabled={markingPrinted}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50"
+            >
+              <CheckCircle2 size={14} /> {markingPrinted ? '처리 중…' : '출력완료로 표시'}
+            </button>
+            <button
+              onClick={() => setPendingPrintIds([])}
+              className="px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-800"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      )}
+
       {invoices.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
           <FileText size={48} className="mx-auto text-gray-300 mb-4" />
@@ -215,6 +314,9 @@ export function InvoicesPage() {
                 <th className="px-4 py-3 text-right">합계</th>
                 <th className="px-4 py-3 text-center">거래명세표</th>
                 <th className="px-4 py-3 text-center">기안</th>
+                <th className="px-4 py-3 text-center">PDF</th>
+                <th className="px-4 py-3 text-center">출력가능</th>
+                <th className="px-4 py-3 text-center">출력</th>
                 <th className="w-10 px-2 py-3"></th>
               </tr>
             </thead>
@@ -317,6 +419,55 @@ function InvoiceRow({
             </span>
           )}
         </td>
+        <td className="px-4 py-2.5 text-center">
+          {inv.pdf_mapped ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200">
+              <ScanLine size={10} /> 매핑됨
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-400 border border-slate-200">
+              미매핑
+            </span>
+          )}
+        </td>
+        <td className="px-4 py-2.5 text-center">
+          {!inv.pdf_mapped ? (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-red-200"
+              title="세금계산서 PDF가 매핑되지 않아 출력할 수 없습니다"
+            >
+              출력불가
+            </span>
+          ) : inv.master_count > 0 ? (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200"
+              title="세금계산서 PDF + 기안 모두 준비됨"
+            >
+              <CheckCircle2 size={10} /> 완비
+            </span>
+          ) : (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-600 border border-amber-200"
+              title="세금계산서 PDF만 있고 기안이 없습니다 (세금계산서 출력은 가능)"
+            >
+              기안없음
+            </span>
+          )}
+        </td>
+        <td className="px-4 py-2.5 text-center">
+          {inv.printed_at ? (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200"
+              title={`출력완료: ${inv.printed_at}`}
+            >
+              <CheckCircle2 size={10} /> 출력완료
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-400 border border-slate-200">
+              미출력
+            </span>
+          )}
+        </td>
         <td className="px-2 py-2.5">
           <button
             onClick={(e) => onDelete(e, inv.id)}
@@ -330,7 +481,7 @@ function InvoiceRow({
 
       {isMatchMode && (
         <tr>
-          <td colSpan={11} className="px-6 py-3 bg-blue-50 border-y border-blue-200">
+          <td colSpan={14} className="px-6 py-3 bg-blue-50 border-y border-blue-200">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-medium text-blue-800">
                 매칭할 거래명세표를 선택하세요
@@ -363,7 +514,7 @@ function InvoiceRow({
 
       {expanded && detail && (
         <tr>
-          <td colSpan={11} className="px-8 py-4 bg-slate-50 border-b border-slate-200">
+          <td colSpan={14} className="px-8 py-4 bg-slate-50 border-b border-slate-200">
             <div className="space-y-4">
               <div className="grid grid-cols-3 gap-4 text-sm">
                 <div>

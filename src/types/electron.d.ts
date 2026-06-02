@@ -10,7 +10,9 @@ interface ElectronAPI {
   processFiles: (invoiceFolder: string, approvalFolder: string, month: string) => Promise<ProcessResult>;
   getInvoices: (month: string) => Promise<Invoice[]>;
   getInvoice: (id: number) => Promise<InvoiceDetail>;
-  printInvoices: (ids: number[]) => Promise<PrintResult>;
+  printInvoices: (ids: number[], mode?: 'all' | 'tax' | 'approval') => Promise<PrintResult>;
+  markPrinted: (ids: number[]) => Promise<{ ok: boolean; marked: number }>;
+  buildPdfMapping: (month: string) => Promise<PdfMappingResult>;
   deleteInvoice: (id: number) => Promise<boolean>;
   matchInvoice: (invoiceId: number, approvalId: number) => Promise<boolean>;
   unmatchInvoice: (approvalId: number) => Promise<boolean>;
@@ -36,6 +38,7 @@ interface ElectronAPI {
   autoMatchApprovalMasters: (folderPath: string) => Promise<{ matched: number; skipped: number }>;
 
   exportExcel: (month: string, type: string) => Promise<ExportResult>;
+  exportDashboardPdf: (html: string, defaultName: string) => Promise<ExportPdfResult>;
   getAppVersion: () => Promise<string>;
   checkForUpdates: () => Promise<{ ok: boolean; version?: string; message?: string }>;
   quitAndInstall: () => Promise<void>;
@@ -47,6 +50,7 @@ interface PrintResult {
   ok: boolean;
   printed?: number;
   missing?: string[];
+  printedIds?: number[];
   message?: string;
 }
 
@@ -116,6 +120,17 @@ interface Invoice {
   approval_files: string | null;
   statement_files: string | null;
   master_count: number;
+  pdf_mapped: boolean;
+  printed_at: string | null;
+}
+
+interface PdfMappingResult {
+  ok: boolean;
+  message?: string;
+  total?: number;
+  mapped?: number;
+  newlyMapped?: number;
+  unmapped?: string[];
 }
 
 interface ApprovalMaster {
@@ -209,6 +224,13 @@ interface MonthlyCostData {
 
 interface ExportResult {
   file_path: string;
+}
+
+interface ExportPdfResult {
+  ok: boolean;
+  canceled?: boolean;
+  file_path?: string;
+  message?: string;
 }
 
 interface Window {

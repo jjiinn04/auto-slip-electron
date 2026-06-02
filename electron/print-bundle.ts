@@ -191,17 +191,15 @@ export async function buildTaxPdfIndex(
 }
 
 export interface BundleItem {
-  taxPdfPath: string;
-  approvalPdfPaths: string[];
+  paths: string[];
 }
 
-// 세금계산서 PDF + 매칭된 기안 PDF들을 하나의 PDF로 병합한다.
+// 항목별 PDF 경로 목록을 순서대로 하나의 PDF로 병합한다.
 export async function mergeBundle(items: BundleItem[]): Promise<Uint8Array> {
   const merged = await PDFDocument.create();
 
   for (const item of items) {
-    const paths = [item.taxPdfPath, ...item.approvalPdfPaths];
-    for (const p of paths) {
+    for (const p of item.paths) {
       if (!p || !fs.existsSync(p)) continue;
       try {
         const src = await PDFDocument.load(fs.readFileSync(p), { ignoreEncryption: true });
