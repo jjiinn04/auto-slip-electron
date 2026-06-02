@@ -198,7 +198,7 @@ export function InvoicesPage() {
                 <ChevronDown size={14} />
               </button>
               {showPrintMenu && (
-                <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 py-1 w-56">
+                <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 py-1 w-56">
                   {([
                     ['all', '통합 출력', '세금계산서 + 매칭된 기안'],
                     ['tax', '세금계산서만', '세금계산서 PDF만'],
@@ -246,7 +246,7 @@ export function InvoicesPage() {
                 <Download size={14} /> 엑셀 다운로드
               </button>
               {showExportMenu && (
-                <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 py-1 w-44">
+                <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 py-1 w-44">
                   {([['list', '목록표'], ['summary', '공급자별 집계'], ['douzone', '더존 전표']] as const).map(([type, label]) => (
                     <button
                       key={type}
@@ -303,9 +303,9 @@ export function InvoicesPage() {
           <p className="text-sm text-gray-400 mt-1">홈에서 폴더를 선택하고 처리해주세요.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200">
           <table className="w-full text-sm">
-            <thead>
+            <thead className="sticky top-0 z-20">
               <tr className="bg-slate-800 text-left text-xs font-medium text-white">
                 <th className="w-8 px-3 py-3 text-center">
                   <input

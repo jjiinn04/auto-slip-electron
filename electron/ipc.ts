@@ -8,6 +8,7 @@ import { SettingsStore } from './settings';
 import { parseTaxInvoiceXML, checkEncrypted } from './xml-parser';
 import { generateExcel, generateMonthlyCostExcel } from './excel-generator';
 import { buildTaxPdfIndex, mergeBundle, approvalNoFromSourceFile, type BundleItem } from './print-bundle';
+import { findDepartment } from './departments';
 
 interface ScannedFile {
   name: string;
@@ -1065,7 +1066,9 @@ export function registerIpcHandlers(
         return { display_name: item.display_name, contract_period: item.contract_period, supplier: item.supplier, yearData };
       });
 
-      const filePath = await generateMonthlyCostExcel(exportItems, baseYear);
+      const dept = findDepartment(settings.get('selectedDepartmentId') as string);
+      const deptName = dept?.name || '부서';
+      const filePath = await generateMonthlyCostExcel(exportItems, baseYear, deptName);
       shell.showItemInFolder(filePath);
       return { file_path: filePath };
     }

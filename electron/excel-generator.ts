@@ -129,6 +129,7 @@ export async function generateExcel(
 export async function generateMonthlyCostExcel(
   items: MonthlyCostExportItem[],
   baseYear: number,
+  departmentName = '부서',
 ): Promise<string> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('IT시스템 월별비용');
@@ -305,7 +306,10 @@ export async function generateMonthlyCostExcel(
   ws.mergeCells(totalStartRow, 4, totalEndRow, 4);
 
   const desktopPath = app.getPath('desktop');
-  const filePath = path.join(desktopPath, `autoslip_${baseYear}_monthly-cost.xlsx`);
+  const today = new Date();
+  const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const safeDept = departmentName.replace(/[\\/:*?"<>|]/g, '');
+  const filePath = path.join(desktopPath, `${safeDept}-월별비용-${dateStr}.xlsx`);
   await wb.xlsx.writeFile(filePath);
   return filePath;
 }
