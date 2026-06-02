@@ -59,7 +59,8 @@
       {
         "provider": "github",
         "owner": "jjiinn04",
-        "repo": "auto-slip-electron"
+        "repo": "auto-slip-electron",
+        "releaseType": "release"
       }
     ],
     "files": [
