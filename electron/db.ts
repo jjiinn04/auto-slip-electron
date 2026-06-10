@@ -100,6 +100,7 @@ export function setupDatabase(departmentId?: string): Database.Database {
       match_keyword TEXT NOT NULL,
       billing_cycle TEXT NOT NULL DEFAULT 'monthly',
       sort_order INTEGER DEFAULT 0,
+      is_deleted INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -148,6 +149,12 @@ export function setupDatabase(departmentId?: string): Database.Database {
   const colCheck = db.prepare("SELECT COUNT(*) as cnt FROM pragma_table_info('cost_items') WHERE name = 'billing_cycle'").get() as any;
   if (colCheck.cnt === 0) {
     db.exec("ALTER TABLE cost_items ADD COLUMN billing_cycle TEXT NOT NULL DEFAULT 'monthly'");
+  }
+
+  // 소프트 삭제 플래그: 사용자가 삭제한 항목을 자동 감지가 다시 만들지 않도록 한다.
+  const delCheck = db.prepare("SELECT COUNT(*) as cnt FROM pragma_table_info('cost_items') WHERE name = 'is_deleted'").get() as any;
+  if (delCheck.cnt === 0) {
+    db.exec("ALTER TABLE cost_items ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0");
   }
 
   return db;

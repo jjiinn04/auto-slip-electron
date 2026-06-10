@@ -1,6 +1,6 @@
 {
   "name": "auto-slip",
-  "version": "1.7.4",
+  "version": "1.7.5",
   "description": "월마감 전표 자동화 데스크톱 앱",
   "type": "module",
   "main": "dist-electron/main.js",

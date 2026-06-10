@@ -652,7 +652,7 @@ export function registerIpcHandlers(
   });
 
   ipcMain.handle('costItems:list', () => {
-    return db.prepare('SELECT * FROM cost_items ORDER BY sort_order, id').all();
+    return db.prepare('SELECT * FROM cost_items WHERE is_deleted=0 ORDER BY sort_order, id').all();
   });
 
   ipcMain.handle('costItems:save', (_event, item: { id?: number; display_name: string; contract_period: string; supplier: string; match_keyword: string; billing_cycle?: string; sort_order: number }) => {
@@ -677,8 +677,11 @@ export function registerIpcHandlers(
   });
 
   ipcMain.handle('costItems:delete', (_event, id: number) => {
+    // 소프트 삭제: 행은 남겨두되 is_deleted=1 로 숨긴다.
+    // 행을 남기면 autoAddMissingCostItems 가 이 match_keyword 를 "이미 존재"로 보고
+    // 세금계산서 품명이 매칭되더라도 다시 만들지 않는다(삭제 기억).
     db.prepare('DELETE FROM cost_item_amounts WHERE cost_item_id=?').run(id);
-    db.prepare('DELETE FROM cost_items WHERE id=?').run(id);
+    db.prepare('UPDATE cost_items SET is_deleted=1 WHERE id=?').run(id);
     return true;
   });
 
@@ -797,7 +800,8 @@ export function registerIpcHandlers(
       } else if (!itemId) {
         itemId = existingMap.get(row.name);
       } else if (!seenNames.has(row.name)) {
-        db.prepare('UPDATE cost_items SET contract_period = ?, supplier = ?, billing_cycle = ? WHERE id = ?')
+        // 엑셀 재임포트는 명시적 추가 의도 → 과거 삭제된 항목이면 되살린다(is_deleted=0).
+        db.prepare('UPDATE cost_items SET contract_period = ?, supplier = ?, billing_cycle = ?, is_deleted = 0 WHERE id = ?')
           .run(period, row.supplier, billingCycle, itemId);
         skipped++;
       }
@@ -828,7 +832,7 @@ export function registerIpcHandlers(
   });
 
   ipcMain.handle('monthlyCost:data', (_event, baseYear: number) => {
-    const items = db.prepare('SELECT * FROM cost_items ORDER BY sort_order, id').all() as any[];
+    const items = db.prepare('SELECT * FROM cost_items WHERE is_deleted=0 ORDER BY sort_order, id').all() as any[];
     const years = [baseYear, baseYear - 1];
 
     const invoices = db.prepare(`
@@ -1017,7 +1021,7 @@ export function registerIpcHandlers(
     if (type === 'monthly-cost') {
       const baseYear = parseInt(month) || new Date().getFullYear();
       const years = [baseYear, baseYear - 1];
-      const items = db.prepare('SELECT * FROM cost_items ORDER BY sort_order, id').all() as any[];
+      const items = db.prepare('SELECT * FROM cost_items WHERE is_deleted=0 ORDER BY sort_order, id').all() as any[];
       const invoices = db.prepare(`
         SELECT description, supply_amount, issue_date
         FROM tax_invoices
