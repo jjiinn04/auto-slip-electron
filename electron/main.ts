@@ -118,8 +118,13 @@ app.whenReady().then(() => {
   const invoiceFolder = settings.get('invoiceFolder') as string;
   const approvalFolder = settings.get('approvalFolder') as string;
   if (!invoiceFolder) {
+    // 매월 1~6일은 전달, 7일부터는 현재 달을 기본값으로 한다.
     const now = new Date();
-    const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const base = new Date(now.getFullYear(), now.getMonth(), 1);
+    if (now.getDate() <= 6) {
+      base.setMonth(base.getMonth() - 1);
+    }
+    const defaultMonth = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}`;
     settings.set('defaultMonth', defaultMonth);
   }
 

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { getDefaultMonth } from '../lib/format';
 
 interface AppState {
   invoiceFolder: string;
@@ -16,8 +17,7 @@ interface AppState {
   setLastResult: (result: ProcessResult | null) => void;
 }
 
-const now = new Date();
-const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+const defaultMonth = getDefaultMonth();
 
 export const useAppStore = create<AppState>((set) => ({
   invoiceFolder: '',
