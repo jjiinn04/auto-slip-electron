@@ -20,7 +20,8 @@ export function HomePage() {
     getAPI().getSettings().then((s) => {
       if (s.invoiceFolder) setInvoiceFolder(s.invoiceFolder);
       if (s.approvalFolder) setApprovalFolder(s.approvalFolder);
-      if (s.defaultMonth) setMonth(s.defaultMonth);
+      // 디폴트 월은 저장값이 아니라 항상 날짜 기준(getDefaultMonth)으로 계산한다.
+      // (저장값을 쓰면 한 번 설정된 뒤 날짜가 바뀌어도 갱신되지 않는 버그가 생김)
     });
   }, []);
 

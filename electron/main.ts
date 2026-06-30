@@ -114,19 +114,8 @@ app.whenReady().then(() => {
     return result.filePaths[0];
   });
 
-  // Auto-process on startup if settings exist
-  const invoiceFolder = settings.get('invoiceFolder') as string;
-  const approvalFolder = settings.get('approvalFolder') as string;
-  if (!invoiceFolder) {
-    // 매월 1~6일은 전달, 7일부터는 현재 달을 기본값으로 한다.
-    const now = new Date();
-    const base = new Date(now.getFullYear(), now.getMonth(), 1);
-    if (now.getDate() <= 6) {
-      base.setMonth(base.getMonth() - 1);
-    }
-    const defaultMonth = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}`;
-    settings.set('defaultMonth', defaultMonth);
-  }
+  // 디폴트 월은 렌더러의 getDefaultMonth(format.ts)가 날짜 기준으로 항상 계산한다.
+  // 여기서 settings.defaultMonth에 저장하면 한 번 굳어진 값이 갱신되지 않아 제거함.
 
   createWindow();
 
