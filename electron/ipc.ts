@@ -313,6 +313,13 @@ export function registerIpcHandlers(
     const printMap = new Map<string, string>(printRows.map((r) => [r.approval_key, r.printed_at]));
     const exRows = db.prepare('SELECT tax_invoice_id, approval_master_id FROM master_match_exclusions').all() as any[];
     const excluded = new Set<string>(exRows.map((r) => `${r.tax_invoice_id}:${r.approval_master_id}`));
+    const manualRows = db.prepare('SELECT tax_invoice_id, file_name FROM manual_approval_files').all() as any[];
+    const manualByInvoice = new Map<number, string[]>();
+    for (const r of manualRows) {
+      const arr = manualByInvoice.get(r.tax_invoice_id) || [];
+      arr.push(r.file_name);
+      manualByInvoice.set(r.tax_invoice_id, arr);
+    }
 
     return invoices.map((inv: any) => {
       const matchedMasters = masters.filter((m: any) => {
@@ -323,12 +330,14 @@ export function registerIpcHandlers(
         if (!m.match_description) return true;
         return inv.description && inv.description.includes(m.match_description);
       });
+      const manualNames = manualByInvoice.get(inv.id) || [];
+      const allNames = [...matchedMasters.map((m: any) => m.file_name), ...manualNames];
       const key = approvalNoFromSourceFile(inv.source_file || '');
       const mappedPath = key ? pdfMap.get(key) : undefined;
       return {
         ...inv,
-        approval_files: matchedMasters.length > 0 ? matchedMasters.map((m: any) => m.file_name).join(',') : null,
-        master_count: matchedMasters.length,
+        approval_files: allNames.length > 0 ? allNames.join(',') : null,
+        master_count: allNames.length,
         pdf_mapped: !!(mappedPath && fs.existsSync(mappedPath)),
         printed_at: key ? printMap.get(key) ?? null : null,
       };
@@ -352,13 +361,27 @@ export function registerIpcHandlers(
       return invoice.description && invoice.description.includes(m.match_description);
     }) : [];
 
-    return { invoice, items, approvals: masters, statements };
+    const manualFiles = db.prepare('SELECT * FROM manual_approval_files WHERE tax_invoice_id = ? ORDER BY id').all(id) as any[];
+    const manualMasters = manualFiles.map((f) => ({
+      id: f.id,
+      file_name: f.file_name,
+      file_path: f.file_path,
+      file_type: f.file_type,
+      match_supplier: '수기첨부',
+      match_description: '',
+      memo: '',
+      created_at: f.created_at,
+      manual: true,
+    }));
+
+    return { invoice, items, approvals: [...masters, ...manualMasters], statements };
   });
 
   ipcMain.handle('invoices:delete', (_event, id: number) => {
     db.transaction(() => {
       db.prepare('UPDATE approval_documents SET matched_invoice_id = NULL WHERE matched_invoice_id = ?').run(id);
       db.prepare('DELETE FROM master_match_exclusions WHERE tax_invoice_id = ?').run(id);
+      db.prepare('DELETE FROM manual_approval_files WHERE tax_invoice_id = ?').run(id);
       db.prepare('DELETE FROM line_items WHERE invoice_id = ?').run(id);
       db.prepare('DELETE FROM tax_invoices WHERE id = ?').run(id);
     })();
@@ -434,6 +457,11 @@ export function registerIpcHandlers(
         if (!supplierMatch) continue;
         if (m.match_description && !(inv.description && inv.description.includes(m.match_description))) continue;
         if (m.file_path && fs.existsSync(m.file_path)) approvalPdfPaths.push(m.file_path);
+      }
+      // 수기 첨부 기안 PDF (이미지는 병합 불가하므로 PDF만)
+      const manualForInv = db.prepare("SELECT file_path FROM manual_approval_files WHERE tax_invoice_id = ? AND file_type = 'pdf'").all(inv.id) as any[];
+      for (const mf of manualForInv) {
+        if (mf.file_path && fs.existsSync(mf.file_path)) approvalPdfPaths.push(mf.file_path);
       }
 
       let paths: string[];
@@ -588,6 +616,34 @@ export function registerIpcHandlers(
   // 기안문서 매칭 해제: 자동(공급자+적요) 매칭된 기안문서를 특정 세금계산서에서 제외 쌍으로 저장한다.
   ipcMain.handle('masters:exclude', (_event, invoiceId: number, masterId: number) => {
     db.prepare('INSERT OR IGNORE INTO master_match_exclusions (tax_invoice_id, approval_master_id) VALUES (?, ?)').run(invoiceId, masterId);
+    return true;
+  });
+
+  // 기안문서 수기 첨부: 파일 선택 → 특정 세금계산서에 직접 연결한다.
+  ipcMain.handle('masters:addManual', async (_event, invoiceId: number) => {
+    const inv = db.prepare('SELECT id FROM tax_invoices WHERE id = ?').get(invoiceId) as any;
+    if (!inv) return { ok: false, message: '세금계산서를 찾을 수 없습니다.' };
+
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      title: '기안문서 파일 선택',
+      filters: [{ name: '문서', extensions: ['pdf', 'png', 'jpg', 'jpeg'] }],
+    });
+    if (result.canceled || !result.filePaths[0]) return { ok: false, canceled: true };
+
+    const filePath = result.filePaths[0];
+    const fileName = path.basename(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    const fileType = ext === '.pdf' ? 'pdf' : (['.png', '.jpg', '.jpeg'].includes(ext) ? 'image' : 'other');
+    const info = db.prepare(
+      'INSERT INTO manual_approval_files (tax_invoice_id, file_name, file_path, file_type) VALUES (?, ?, ?, ?)'
+    ).run(invoiceId, fileName, filePath, fileType);
+    return { ok: true, id: Number(info.lastInsertRowid), file_name: fileName, file_path: filePath, file_type: fileType };
+  });
+
+  // 기안문서 수기 첨부 삭제
+  ipcMain.handle('masters:deleteManual', (_event, manualId: number) => {
+    db.prepare('DELETE FROM manual_approval_files WHERE id = ?').run(manualId);
     return true;
   });
 

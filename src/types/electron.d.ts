@@ -19,6 +19,8 @@ interface ElectronAPI {
   matchInvoice: (invoiceId: number, approvalId: number) => Promise<boolean>;
   unmatchInvoice: (approvalId: number) => Promise<boolean>;
   excludeMaster: (invoiceId: number, masterId: number) => Promise<boolean>;
+  addManualMaster: (invoiceId: number) => Promise<{ ok: boolean; canceled?: boolean; id?: number; file_name?: string; file_path?: string; file_type?: string; message?: string }>;
+  deleteManualMaster: (manualId: number) => Promise<boolean>;
   getUnmatchedApprovals: (month: string, classification?: string) => Promise<Approval[]>;
   openFile: (filePath: string) => Promise<boolean>;
   showInFolder: (filePath: string) => Promise<boolean>;
@@ -146,6 +148,7 @@ interface ApprovalMaster {
   match_description: string;
   memo: string;
   created_at: string;
+  manual?: boolean;
 }
 
 interface InvoiceDetail {

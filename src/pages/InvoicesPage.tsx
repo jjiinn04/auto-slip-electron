@@ -180,6 +180,30 @@ export function InvoicesPage() {
     setDetail(d);
   };
 
+  const handleAddManualMaster = async (invoiceId: number) => {
+    const res = await getAPI().addManualMaster(invoiceId);
+    if (res.canceled) return;
+    if (!res.ok) {
+      alert(`기안문서 수기 첨부 실패\n${res.message ?? ''}`);
+      return;
+    }
+    reload();
+    if (expandedId === invoiceId) {
+      const d = await getAPI().getInvoice(invoiceId);
+      setDetail(d);
+    } else {
+      handleExpand(invoiceId);
+    }
+  };
+
+  const handleDeleteManualMaster = async (invoiceId: number, manualId: number) => {
+    if (!confirm('이 기안 수기 첨부를 삭제하시겠습니까?')) return;
+    await getAPI().deleteManualMaster(manualId);
+    reload();
+    const d = await getAPI().getInvoice(invoiceId);
+    setDetail(d);
+  };
+
   const handleOpenFile = (e: React.MouseEvent, filePath: string) => {
     e.stopPropagation();
     getAPI().openFile(filePath);
@@ -358,6 +382,8 @@ export function InvoicesPage() {
                   onMatch={handleMatch}
                   onUnmatch={handleUnmatch}
                   onExcludeMaster={handleExcludeMaster}
+                  onAddManualMaster={handleAddManualMaster}
+                  onDeleteManualMaster={handleDeleteManualMaster}
                   onCancelMatch={() => setMatchingId(null)}
                   onOpenFile={handleOpenFile}
                   onShowInFolder={handleShowInFolder}
@@ -390,7 +416,8 @@ export function InvoicesPage() {
 
 function InvoiceRow({
   inv, seq, expanded, detail, matchingId, unmatchedDocs, selected, onToggleSelect,
-  onExpand, onDelete, onStartMatch, onMatch, onUnmatch, onExcludeMaster, onCancelMatch,
+  onExpand, onDelete, onStartMatch, onMatch, onUnmatch, onExcludeMaster,
+  onAddManualMaster, onDeleteManualMaster, onCancelMatch,
   onOpenFile, onShowInFolder, onSetPdf, onReload,
 }: {
   inv: Invoice;
@@ -407,6 +434,8 @@ function InvoiceRow({
   onMatch: (invoiceId: number, docId: number) => void;
   onUnmatch: (invoiceId: number, docId: number) => void;
   onExcludeMaster: (invoiceId: number, masterId: number) => void;
+  onAddManualMaster: (invoiceId: number) => void;
+  onDeleteManualMaster: (invoiceId: number, manualId: number) => void;
   onCancelMatch: () => void;
   onOpenFile: (e: React.MouseEvent, path: string) => void;
   onShowInFolder: (e: React.MouseEvent, path: string) => void;
@@ -414,6 +443,7 @@ function InvoiceRow({
   onReload: () => void;
 }) {
   const isMatchMode = matchingId === inv.id;
+  const [mapMenuOpen, setMapMenuOpen] = useState(false);
 
   return (
     <>
@@ -432,7 +462,41 @@ function InvoiceRow({
         <td className="px-4 py-2.5 text-center tabular-nums text-gray-500">{seq}</td>
         <td className="px-4 py-2.5 text-gray-600">{inv.issue_date}</td>
         <td className="px-4 py-2.5 font-medium text-gray-900">{inv.supplier_name}</td>
-        <td className="px-4 py-2.5 text-gray-600">{inv.description}</td>
+        <td className="px-4 py-2.5 text-gray-600 relative" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => setMapMenuOpen((o) => !o)}
+            className="text-left hover:text-blue-600 hover:underline transition-colors"
+            title="클릭하여 수기 매핑"
+          >
+            {inv.description || <span className="text-gray-300">(품명 없음)</span>}
+          </button>
+          {mapMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setMapMenuOpen(false)} />
+              <div className="absolute left-4 top-full mt-1 z-20 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1 text-sm">
+                <div className="px-3 py-1 text-[11px] font-semibold text-gray-400">수기 매핑</div>
+                <button
+                  onClick={(e) => { setMapMenuOpen(false); onAddManualMaster(inv.id); }}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-gray-700 hover:bg-emerald-50 hover:text-emerald-700"
+                >
+                  <Paperclip size={13} /> 기안문서 (파일 선택)
+                </button>
+                <button
+                  onClick={(e) => { setMapMenuOpen(false); onStartMatch(e, inv.id); }}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-gray-700 hover:bg-sky-50 hover:text-sky-700"
+                >
+                  <FileSpreadsheet size={13} /> 거래명세표 (목록)
+                </button>
+                <button
+                  onClick={() => { setMapMenuOpen(false); onSetPdf(inv.id); }}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-gray-700 hover:bg-teal-50 hover:text-teal-700"
+                >
+                  <ScanLine size={13} /> 세금계산서 PDF (파일 선택)
+                </button>
+              </div>
+            </>
+          )}
+        </td>
         <td className="px-4 py-2.5 text-right tabular-nums text-gray-600">{formatAmount(inv.supply_amount)}</td>
         <td className="px-4 py-2.5 text-right tabular-nums text-gray-600">{formatAmount(inv.tax_amount)}</td>
         <td className="px-4 py-2.5 text-right tabular-nums font-semibold">{formatAmount(inv.total_amount)}</td>
@@ -622,6 +686,8 @@ function InvoiceRow({
                 onOpenFile={onOpenFile}
                 onShowInFolder={onShowInFolder}
                 onExcludeMaster={onExcludeMaster}
+                onAddManualMaster={onAddManualMaster}
+                onDeleteManualMaster={onDeleteManualMaster}
               />
             </div>
           </td>
@@ -683,24 +749,31 @@ function StatementSection({
 }
 
 function MasterSection({
-  masters, invoiceId, onOpenFile, onShowInFolder, onExcludeMaster,
+  masters, invoiceId, onOpenFile, onShowInFolder, onExcludeMaster, onAddManualMaster, onDeleteManualMaster,
 }: {
   masters: ApprovalMaster[];
   invoiceId: number;
   onOpenFile: (e: React.MouseEvent, path: string) => void;
   onShowInFolder: (e: React.MouseEvent, path: string) => void;
   onExcludeMaster: (invoiceId: number, masterId: number) => void;
+  onAddManualMaster: (invoiceId: number) => void;
+  onDeleteManualMaster: (invoiceId: number, manualId: number) => void;
 }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
         <p className="text-xs font-semibold text-gray-500">기안문서</p>
-        <span className="text-xs text-gray-400">공급자+적요 기준 자동 매칭</span>
+        <button
+          onClick={() => onAddManualMaster(invoiceId)}
+          className="text-xs text-emerald-600 hover:text-emerald-800 flex items-center gap-1"
+        >
+          <Paperclip size={10} /> 기안문서 수기첨부
+        </button>
       </div>
       {masters.length > 0 ? (
         <div className="space-y-1.5">
           {masters.map((m) => (
-            <div key={m.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-emerald-200">
+            <div key={`${m.manual ? 'm' : 'a'}-${m.id}`} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-emerald-200">
               <div className="flex items-center gap-2">
                 <Paperclip size={10} className="text-emerald-500" />
                 <button
@@ -710,9 +783,13 @@ function MasterSection({
                 >
                   {m.file_name}
                 </button>
-                <span className="text-xs text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
-                  {m.match_supplier}{m.match_description ? ` · ${m.match_description}` : ''}
-                </span>
+                {m.manual ? (
+                  <span className="text-xs text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">수기첨부</span>
+                ) : (
+                  <span className="text-xs text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                    {m.match_supplier}{m.match_description ? ` · ${m.match_description}` : ''}
+                  </span>
+                )}
                 {m.memo && <span className="text-xs text-gray-400">{m.memo}</span>}
               </div>
               <div className="flex items-center gap-1">
@@ -722,7 +799,11 @@ function MasterSection({
                 <button onClick={(e) => onShowInFolder(e, m.file_path)} className="p-1 text-gray-400 hover:text-blue-600 transition-colors" title="폴더에서 보기">
                   <FolderOpen size={14} />
                 </button>
-                <button onClick={() => onExcludeMaster(invoiceId, m.id)} className="p-1 text-gray-400 hover:text-red-500 transition-colors" title="매칭 해제">
+                <button
+                  onClick={() => (m.manual ? onDeleteManualMaster(invoiceId, m.id) : onExcludeMaster(invoiceId, m.id))}
+                  className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                  title={m.manual ? '수기첨부 삭제' : '매칭 해제'}
+                >
                   <Unlink size={14} />
                 </button>
               </div>
@@ -730,7 +811,7 @@ function MasterSection({
           ))}
         </div>
       ) : (
-        <p className="text-xs text-amber-500">등록된 기안문서가 없습니다. 매칭 페이지에서 기안문서를 등록하세요.</p>
+        <p className="text-xs text-amber-500">매칭된 기안문서가 없습니다. 수기첨부하거나 매칭 페이지에서 기안문서를 등록하세요.</p>
       )}
     </div>
   );

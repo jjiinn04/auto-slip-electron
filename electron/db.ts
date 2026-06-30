@@ -152,6 +152,17 @@ export function setupDatabase(departmentId?: string): Database.Database {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       UNIQUE(tax_invoice_id, approval_master_id)
     );
+
+    -- 기안문서 수기 첨부: 특정 세금계산서에 사용자가 디스크에서 직접 고른 기안 파일.
+    -- 자동매칭(공급자+적요)과 별개로, 이 세금계산서에 직접 연결된다.
+    CREATE TABLE IF NOT EXISTS manual_approval_files (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tax_invoice_id INTEGER NOT NULL,
+      file_name TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      file_type TEXT NOT NULL DEFAULT 'pdf',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // Migrations for existing databases (must run AFTER table creation)
