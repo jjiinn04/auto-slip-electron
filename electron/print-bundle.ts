@@ -16,10 +16,15 @@ export function approvalNoFromSourceFile(sourceFile: string): string {
   return normalizeApprovalNo(base);
 }
 
-// PDF 텍스트에서 승인번호 추출
+// PDF 텍스트에서 승인번호 추출.
+// 승인번호(24자)가 PDF 줄바꿈으로 중간에 잘릴 수 있으므로("...aa96507\n9"),
+// "승인번호" 뒤 구간의 공백/줄바꿈을 제거한 뒤 선두 영숫자 run을 키로 사용한다.
 export function extractApprovalNo(text: string): string | null {
-  const m = text.match(/승인번호\s*([0-9A-Za-z]+)/);
-  return m ? m[1] : null;
+  const i = text.indexOf('승인번호');
+  if (i === -1) return null;
+  const compact = text.slice(i + '승인번호'.length).replace(/\s+/g, '');
+  const m = compact.match(/^[0-9A-Za-z]+/);
+  return m ? m[0] : null;
 }
 
 async function readPdfText(pdfPath: string): Promise<string> {
