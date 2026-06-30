@@ -143,6 +143,15 @@ export function setupDatabase(departmentId?: string): Database.Database {
       approval_key TEXT PRIMARY KEY,
       printed_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    -- 기안문서 자동매칭 제외: 특정 세금계산서에서 사용자가 해제한 기안문서(approval_masters) 쌍.
+    -- 기안 매칭은 공급자+적요 문자열로 실시간 계산되므로, 끊으려면 제외 쌍을 저장해야 한다.
+    CREATE TABLE IF NOT EXISTS master_match_exclusions (
+      tax_invoice_id INTEGER NOT NULL,
+      approval_master_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(tax_invoice_id, approval_master_id)
+    );
   `);
 
   // Migrations for existing databases (must run AFTER table creation)

@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteInvoice: (id: number) => ipcRenderer.invoke('invoices:delete', id),
   matchInvoice: (invoiceId: number, approvalId: number) => ipcRenderer.invoke('invoices:match', invoiceId, approvalId),
   unmatchInvoice: (approvalId: number) => ipcRenderer.invoke('invoices:unmatch', approvalId),
+  excludeMaster: (invoiceId: number, masterId: number) => ipcRenderer.invoke('masters:exclude', invoiceId, masterId),
   getUnmatchedApprovals: (month: string, classification?: string) => ipcRenderer.invoke('approvals:unmatched', month, classification),
   openFile: (filePath: string) => ipcRenderer.invoke('file:open', filePath),
   showInFolder: (filePath: string) => ipcRenderer.invoke('file:showInFolder', filePath),

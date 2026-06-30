@@ -62,6 +62,7 @@ const mockAPI: ElectronAPI = {
   deleteInvoice: async () => true,
   matchInvoice: async () => true,
   unmatchInvoice: async () => true,
+  excludeMaster: async () => true,
   getUnmatchedApprovals: async () => [],
   openFile: async () => true,
   showInFolder: async () => true,

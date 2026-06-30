@@ -18,6 +18,7 @@ interface ElectronAPI {
   deleteInvoice: (id: number) => Promise<boolean>;
   matchInvoice: (invoiceId: number, approvalId: number) => Promise<boolean>;
   unmatchInvoice: (approvalId: number) => Promise<boolean>;
+  excludeMaster: (invoiceId: number, masterId: number) => Promise<boolean>;
   getUnmatchedApprovals: (month: string, classification?: string) => Promise<Approval[]>;
   openFile: (filePath: string) => Promise<boolean>;
   showInFolder: (filePath: string) => Promise<boolean>;

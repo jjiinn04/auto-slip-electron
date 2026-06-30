@@ -311,9 +311,12 @@ export function registerIpcHandlers(
     const pdfMap = new Map<string, string>(mapRows.map((r) => [r.approval_key, r.pdf_path]));
     const printRows = db.prepare('SELECT approval_key, printed_at FROM tax_print_status').all() as any[];
     const printMap = new Map<string, string>(printRows.map((r) => [r.approval_key, r.printed_at]));
+    const exRows = db.prepare('SELECT tax_invoice_id, approval_master_id FROM master_match_exclusions').all() as any[];
+    const excluded = new Set<string>(exRows.map((r) => `${r.tax_invoice_id}:${r.approval_master_id}`));
 
     return invoices.map((inv: any) => {
       const matchedMasters = masters.filter((m: any) => {
+        if (excluded.has(`${inv.id}:${m.id}`)) return false;
         const supplierMatch = inv.supplier_name && m.match_supplier &&
           (inv.supplier_name.includes(m.match_supplier) || m.match_supplier.includes(inv.supplier_name));
         if (!supplierMatch) return false;
@@ -338,7 +341,10 @@ export function registerIpcHandlers(
     const statements = db.prepare("SELECT * FROM approval_documents WHERE matched_invoice_id = ? AND classification = 'statement'").all(id);
 
     const allMasters = db.prepare('SELECT * FROM approval_masters').all() as any[];
+    const exRows = db.prepare('SELECT approval_master_id FROM master_match_exclusions WHERE tax_invoice_id = ?').all(id) as any[];
+    const excluded = new Set<number>(exRows.map((r) => r.approval_master_id));
     const masters = invoice ? allMasters.filter((m: any) => {
+      if (excluded.has(m.id)) return false;
       const supplierMatch = invoice.supplier_name && m.match_supplier &&
         (invoice.supplier_name.includes(m.match_supplier) || m.match_supplier.includes(invoice.supplier_name));
       if (!supplierMatch) return false;
@@ -352,6 +358,7 @@ export function registerIpcHandlers(
   ipcMain.handle('invoices:delete', (_event, id: number) => {
     db.transaction(() => {
       db.prepare('UPDATE approval_documents SET matched_invoice_id = NULL WHERE matched_invoice_id = ?').run(id);
+      db.prepare('DELETE FROM master_match_exclusions WHERE tax_invoice_id = ?').run(id);
       db.prepare('DELETE FROM line_items WHERE invoice_id = ?').run(id);
       db.prepare('DELETE FROM tax_invoices WHERE id = ?').run(id);
     })();
@@ -366,6 +373,8 @@ export function registerIpcHandlers(
       `SELECT * FROM tax_invoices WHERE id IN (${placeholders})`
     ).all(...ids) as any[];
     const masters = db.prepare('SELECT * FROM approval_masters').all() as any[];
+    const exRows = db.prepare('SELECT tax_invoice_id, approval_master_id FROM master_match_exclusions').all() as any[];
+    const excludedPairs = new Set<string>(exRows.map((r) => `${r.tax_invoice_id}:${r.approval_master_id}`));
 
     const needsTax = mode !== 'approval';
     const invoiceFolder = settings.get('invoiceFolder') as string | undefined;
@@ -419,6 +428,7 @@ export function registerIpcHandlers(
       // 매칭된 기안 PDF (공급자 + 품명 includes)
       const approvalPdfPaths: string[] = [];
       for (const m of masters) {
+        if (excludedPairs.has(`${inv.id}:${m.id}`)) continue;
         const supplierMatch = inv.supplier_name && m.match_supplier &&
           (inv.supplier_name.includes(m.match_supplier) || m.match_supplier.includes(inv.supplier_name));
         if (!supplierMatch) continue;
@@ -572,6 +582,12 @@ export function registerIpcHandlers(
 
   ipcMain.handle('invoices:unmatch', (_event, approvalId: number) => {
     db.prepare('UPDATE approval_documents SET matched_invoice_id = NULL WHERE id = ?').run(approvalId);
+    return true;
+  });
+
+  // 기안문서 매칭 해제: 자동(공급자+적요) 매칭된 기안문서를 특정 세금계산서에서 제외 쌍으로 저장한다.
+  ipcMain.handle('masters:exclude', (_event, invoiceId: number, masterId: number) => {
+    db.prepare('INSERT OR IGNORE INTO master_match_exclusions (tax_invoice_id, approval_master_id) VALUES (?, ?)').run(invoiceId, masterId);
     return true;
   });
 

@@ -165,7 +165,16 @@ export function InvoicesPage() {
   };
 
   const handleUnmatch = async (invoiceId: number, docId: number) => {
+    if (!confirm('이 거래명세표 매칭을 해제하시겠습니까?')) return;
     await getAPI().unmatchInvoice(docId);
+    reload();
+    const d = await getAPI().getInvoice(invoiceId);
+    setDetail(d);
+  };
+
+  const handleExcludeMaster = async (invoiceId: number, masterId: number) => {
+    if (!confirm('이 기안문서 매칭을 해제하시겠습니까?')) return;
+    await getAPI().excludeMaster(invoiceId, masterId);
     reload();
     const d = await getAPI().getInvoice(invoiceId);
     setDetail(d);
@@ -348,6 +357,7 @@ export function InvoicesPage() {
                   onStartMatch={handleStartMatch}
                   onMatch={handleMatch}
                   onUnmatch={handleUnmatch}
+                  onExcludeMaster={handleExcludeMaster}
                   onCancelMatch={() => setMatchingId(null)}
                   onOpenFile={handleOpenFile}
                   onShowInFolder={handleShowInFolder}
@@ -380,7 +390,7 @@ export function InvoicesPage() {
 
 function InvoiceRow({
   inv, seq, expanded, detail, matchingId, unmatchedDocs, selected, onToggleSelect,
-  onExpand, onDelete, onStartMatch, onMatch, onUnmatch, onCancelMatch,
+  onExpand, onDelete, onStartMatch, onMatch, onUnmatch, onExcludeMaster, onCancelMatch,
   onOpenFile, onShowInFolder, onSetPdf, onReload,
 }: {
   inv: Invoice;
@@ -396,6 +406,7 @@ function InvoiceRow({
   onStartMatch: (e: React.MouseEvent, id: number) => void;
   onMatch: (invoiceId: number, docId: number) => void;
   onUnmatch: (invoiceId: number, docId: number) => void;
+  onExcludeMaster: (invoiceId: number, masterId: number) => void;
   onCancelMatch: () => void;
   onOpenFile: (e: React.MouseEvent, path: string) => void;
   onShowInFolder: (e: React.MouseEvent, path: string) => void;
@@ -607,8 +618,10 @@ function InvoiceRow({
 
               <MasterSection
                 masters={detail.approvals}
+                invoiceId={inv.id}
                 onOpenFile={onOpenFile}
                 onShowInFolder={onShowInFolder}
+                onExcludeMaster={onExcludeMaster}
               />
             </div>
           </td>
@@ -670,11 +683,13 @@ function StatementSection({
 }
 
 function MasterSection({
-  masters, onOpenFile, onShowInFolder,
+  masters, invoiceId, onOpenFile, onShowInFolder, onExcludeMaster,
 }: {
   masters: ApprovalMaster[];
+  invoiceId: number;
   onOpenFile: (e: React.MouseEvent, path: string) => void;
   onShowInFolder: (e: React.MouseEvent, path: string) => void;
+  onExcludeMaster: (invoiceId: number, masterId: number) => void;
 }) {
   return (
     <div>
@@ -706,6 +721,9 @@ function MasterSection({
                 </button>
                 <button onClick={(e) => onShowInFolder(e, m.file_path)} className="p-1 text-gray-400 hover:text-blue-600 transition-colors" title="폴더에서 보기">
                   <FolderOpen size={14} />
+                </button>
+                <button onClick={() => onExcludeMaster(invoiceId, m.id)} className="p-1 text-gray-400 hover:text-red-500 transition-colors" title="매칭 해제">
+                  <Unlink size={14} />
                 </button>
               </div>
             </div>
