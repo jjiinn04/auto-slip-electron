@@ -10,7 +10,7 @@ interface ElectronAPI {
   processFiles: (invoiceFolder: string, approvalFolder: string, month: string) => Promise<ProcessResult>;
   getInvoices: (month: string) => Promise<Invoice[]>;
   getInvoice: (id: number) => Promise<InvoiceDetail>;
-  printInvoices: (ids: number[], mode?: 'all' | 'tax' | 'approval') => Promise<PrintResult>;
+  printInvoices: (ids: number[], mode?: 'all' | 'tax' | 'statement' | 'approval') => Promise<PrintResult>;
   markPrinted: (ids: number[]) => Promise<{ ok: boolean; marked: number }>;
   buildPdfMapping: (month: string) => Promise<PdfMappingResult>;
   setPdfManual: (invoiceId: number) => Promise<{ ok: boolean; canceled?: boolean; file_path?: string; message?: string }>;
@@ -22,6 +22,7 @@ interface ElectronAPI {
   addManualMaster: (invoiceId: number) => Promise<{ ok: boolean; canceled?: boolean; id?: number; file_name?: string; file_path?: string; file_type?: string; message?: string }>;
   deleteManualMaster: (manualId: number) => Promise<boolean>;
   getUnmatchedApprovals: (month: string, classification?: string) => Promise<Approval[]>;
+  getStatementCandidates: (invoiceId: number) => Promise<Approval[]>;
   openFile: (filePath: string) => Promise<boolean>;
   showInFolder: (filePath: string) => Promise<boolean>;
   getApprovals: (month: string) => Promise<Approval[]>;

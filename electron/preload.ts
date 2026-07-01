@@ -17,7 +17,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   getInvoices: (month: string) => ipcRenderer.invoke('invoices:list', month),
   getInvoice: (id: number) => ipcRenderer.invoke('invoices:get', id),
-  printInvoices: (ids: number[], mode?: 'all' | 'tax' | 'approval') => ipcRenderer.invoke('invoices:print', ids, mode),
+  printInvoices: (ids: number[], mode?: 'all' | 'tax' | 'statement' | 'approval') => ipcRenderer.invoke('invoices:print', ids, mode),
   markPrinted: (ids: number[]) => ipcRenderer.invoke('invoices:markPrinted', ids),
   buildPdfMapping: (month: string) => ipcRenderer.invoke('invoices:buildMapping', month),
   setPdfManual: (invoiceId: number) => ipcRenderer.invoke('invoices:setPdfManual', invoiceId),
@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   addManualMaster: (invoiceId: number) => ipcRenderer.invoke('masters:addManual', invoiceId),
   deleteManualMaster: (manualId: number) => ipcRenderer.invoke('masters:deleteManual', manualId),
   getUnmatchedApprovals: (month: string, classification?: string) => ipcRenderer.invoke('approvals:unmatched', month, classification),
+  getStatementCandidates: (invoiceId: number) => ipcRenderer.invoke('invoices:statementCandidates', invoiceId),
   openFile: (filePath: string) => ipcRenderer.invoke('file:open', filePath),
   showInFolder: (filePath: string) => ipcRenderer.invoke('file:showInFolder', filePath),
   getApprovals: (month: string) => ipcRenderer.invoke('approvals:list', month),

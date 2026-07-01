@@ -37,7 +37,7 @@ export function InvoicesPage() {
     setSelectedIds(prev => (prev.size === invoices.length ? new Set() : new Set(invoices.map(i => i.id))));
   };
 
-  const handlePrint = async (mode: 'all' | 'tax' | 'approval' = 'all') => {
+  const handlePrint = async (mode: 'all' | 'tax' | 'statement' | 'approval' = 'all') => {
     if (selectedIds.size === 0) return;
     setShowPrintMenu(false);
     setPrinting(true);
@@ -47,7 +47,7 @@ export function InvoicesPage() {
         alert(`출력 실패\n${result.message ?? ''}`);
       } else {
         if (result.missing && result.missing.length > 0) {
-          const what = mode === 'approval' ? '기안 PDF' : '세금계산서 PDF';
+          const what = mode === 'approval' ? '기안 PDF' : mode === 'statement' ? '거래명세표 PDF' : '세금계산서 PDF';
           alert(`${result.printed}건 출력. ${what}를 찾지 못한 항목:\n${result.missing.join('\n')}`);
         }
         // 인쇄 완료 확인 단계: PDF를 묶어 연 항목을 출력완료 확인 대상으로 보관
@@ -150,7 +150,8 @@ export function InvoicesPage() {
   const handleStartMatch = async (e: React.MouseEvent, invoiceId: number) => {
     e.stopPropagation();
     setMatchingId(invoiceId);
-    const docs = await getAPI().getUnmatchedApprovals(month, 'statement');
+    // 해당 세금계산서의 품명을 포함하면서 '거래명세표' 단어가 있는 폴더 파일만 후보로 표시
+    const docs = await getAPI().getStatementCandidates(invoiceId);
     setUnmatchedDocs(docs);
   };
 
@@ -233,8 +234,9 @@ export function InvoicesPage() {
               {showPrintMenu && (
                 <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 py-1 w-56">
                   {([
-                    ['all', '통합 출력', '세금계산서 + 매칭된 기안'],
+                    ['all', '통합 출력', '세금계산서 + 거래명세표 + 기안'],
                     ['tax', '세금계산서만', '세금계산서 PDF만'],
+                    ['statement', '거래명세표만', '매칭된 거래명세표만'],
                     ['approval', '기안만', '매칭된 기안문서만'],
                   ] as const).map(([m, label, desc]) => (
                     <button
@@ -598,12 +600,12 @@ function InvoiceRow({
           <td colSpan={15} className="px-6 py-3 bg-blue-50 border-y border-blue-200">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-medium text-blue-800">
-                매칭할 거래명세표를 선택하세요
+                매칭할 거래명세표를 선택하세요 <span className="font-normal text-blue-500">(품명 + '거래명세표' 파일명 일치)</span>
               </p>
               <button onClick={onCancelMatch} className="text-xs text-blue-600 hover:text-blue-800">취소</button>
             </div>
             {unmatchedDocs.length === 0 ? (
-              <p className="text-xs text-blue-500">미매칭 거래명세표가 없습니다.</p>
+              <p className="text-xs text-blue-500">품명과 일치하는 '거래명세표' 파일이 없습니다.</p>
             ) : (
               <div className="space-y-1">
                 {unmatchedDocs.map((a) => (

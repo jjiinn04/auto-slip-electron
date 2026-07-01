@@ -66,6 +66,7 @@ const mockAPI: ElectronAPI = {
   addManualMaster: async () => ({ ok: true, id: 1, file_name: '수기기안.pdf', file_path: '/기안/수기기안.pdf', file_type: 'pdf' }),
   deleteManualMaster: async () => true,
   getUnmatchedApprovals: async () => [],
+  getStatementCandidates: async () => [],
   openFile: async () => true,
   showInFolder: async () => true,
   getInvoice: async (id) => ({

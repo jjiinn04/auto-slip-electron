@@ -388,7 +388,7 @@ export function registerIpcHandlers(
     return true;
   });
 
-  ipcMain.handle('invoices:print', async (_event, ids: number[], mode: 'all' | 'tax' | 'approval' = 'all') => {
+  ipcMain.handle('invoices:print', async (_event, ids: number[], mode: 'all' | 'tax' | 'statement' | 'approval' = 'all') => {
     if (!ids || ids.length === 0) return { ok: false, message: '선택된 항목이 없습니다.' };
 
     const placeholders = ids.map(() => '?').join(',');
@@ -464,16 +464,27 @@ export function registerIpcHandlers(
         if (mf.file_path && fs.existsSync(mf.file_path)) approvalPdfPaths.push(mf.file_path);
       }
 
+      // 매칭된 거래명세표 PDF (이미지는 병합 불가하므로 PDF만)
+      const statementPdfPaths: string[] = [];
+      const stmtForInv = db.prepare("SELECT file_path FROM approval_documents WHERE matched_invoice_id = ? AND classification = 'statement' AND file_type = 'pdf'").all(inv.id) as any[];
+      for (const sf of stmtForInv) {
+        if (sf.file_path && fs.existsSync(sf.file_path)) statementPdfPaths.push(sf.file_path);
+      }
+
       let paths: string[];
       if (mode === 'tax') {
         if (!taxPdfPath) { missing.push(label); continue; }
         paths = [taxPdfPath];
+      } else if (mode === 'statement') {
+        if (statementPdfPaths.length === 0) { missing.push(label); continue; }
+        paths = [...statementPdfPaths];
       } else if (mode === 'approval') {
         if (approvalPdfPaths.length === 0) { missing.push(label); continue; }
         paths = [...approvalPdfPaths];
       } else {
+        // 통합 출력: 세금계산서 → 거래명세표 → 기안 순서
         if (!taxPdfPath) { missing.push(label); continue; }
-        paths = [taxPdfPath, ...approvalPdfPaths];
+        paths = [taxPdfPath, ...statementPdfPaths, ...approvalPdfPaths];
       }
 
       printedIds.push(id);
@@ -483,7 +494,7 @@ export function registerIpcHandlers(
     console.log(`[invoices:print] mode=${mode}, ids=${ids.length}, bundled=${items.length}, missing=${missing.length}, taxIndex=${taxIndex.size}`);
 
     if (items.length === 0) {
-      const what = mode === 'approval' ? '기안 PDF' : '세금계산서 PDF';
+      const what = mode === 'approval' ? '기안 PDF' : mode === 'statement' ? '거래명세표 PDF' : '세금계산서 PDF';
       return { ok: false, message: `${what}를 찾지 못했습니다.\n${missing.join('\n')}` };
     }
 
@@ -652,6 +663,23 @@ export function registerIpcHandlers(
       return db.prepare('SELECT * FROM approval_documents WHERE month = ? AND matched_invoice_id IS NULL AND classification = ? ORDER BY file_name').all(month, classification);
     }
     return db.prepare('SELECT * FROM approval_documents WHERE month = ? AND matched_invoice_id IS NULL ORDER BY file_name').all(month);
+  });
+
+  // 특정 세금계산서에 매칭할 거래명세표 후보: 같은 달의 미매칭 거래명세표 중
+  // 파일명이 해당 세금계산서의 품명(품명)을 포함하면서 '거래명세표' 단어를 가진 파일만 보여준다.
+  ipcMain.handle('invoices:statementCandidates', (_event, invoiceId: number) => {
+    const inv = db.prepare('SELECT description, month FROM tax_invoices WHERE id = ?').get(invoiceId) as any;
+    if (!inv) return [];
+    // LIKE 와일드카드(%, _, \)를 이스케이프해 품명을 안전한 부분일치 패턴으로 사용
+    const esc = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
+    const desc = (inv.description || '').trim();
+    return db.prepare(
+      `SELECT * FROM approval_documents
+       WHERE month = ? AND matched_invoice_id IS NULL AND classification = 'statement'
+         AND file_name LIKE '%거래명세표%'
+         AND file_name LIKE ? ESCAPE '\\'
+       ORDER BY file_name`
+    ).all(inv.month, `%${esc(desc)}%`);
   });
 
   ipcMain.handle('file:open', (_event, filePath: string) => {
@@ -913,15 +941,19 @@ export function registerIpcHandlers(
       WHERE CAST(SUBSTR(issue_date, 1, 4) AS INTEGER) IN (?, ?)
     `).all(years[0], years[1]) as any[];
 
-    const excelAmounts = db.prepare(`
-      SELECT cost_item_id, year, month, amount
+    const savedAmounts = db.prepare(`
+      SELECT cost_item_id, year, month, amount, source
       FROM cost_item_amounts
       WHERE year IN (?, ?)
     `).all(years[0], years[1]) as any[];
 
+    // 수기편집(manual)은 XML 매칭 금액을 덮어쓰고, 엑셀 임포트(excel)는 XML이 없을 때만 채운다.
+    const manualMap = new Map<string, number>();
     const excelMap = new Map<string, number>();
-    for (const ea of excelAmounts) {
-      excelMap.set(`${ea.cost_item_id}-${ea.year}-${ea.month}`, ea.amount);
+    for (const ea of savedAmounts) {
+      const key = `${ea.cost_item_id}-${ea.year}-${ea.month}`;
+      if (ea.source === 'manual') manualMap.set(key, ea.amount);
+      else excelMap.set(key, ea.amount);
     }
 
     const result = items.map((item: any) => {
@@ -938,20 +970,23 @@ export function registerIpcHandlers(
           const m = parseInt(inv.issue_date.slice(5, 7));
           if (yearData[y]) {
             yearData[y].months[m] += inv.supply_amount;
-            yearData[y].total += inv.supply_amount;
           }
         }
       }
 
       for (const y of years) {
         for (let m = 1; m <= 12; m++) {
-          if (yearData[y].months[m] === 0) {
-            const excelVal = excelMap.get(`${item.id}-${y}-${m}`);
-            if (excelVal && excelVal > 0) {
-              yearData[y].months[m] = excelVal;
-              yearData[y].total += excelVal;
-            }
+          const cellKey = `${item.id}-${y}-${m}`;
+          const manualVal = manualMap.get(cellKey);
+          if (manualVal !== undefined && manualVal > 0) {
+            // 수기편집: XML 매칭 여부와 무관하게 해당 셀 값을 대체
+            yearData[y].months[m] = manualVal;
+          } else if (yearData[y].months[m] === 0) {
+            // 엑셀 임포트: XML 매칭이 없는 셀만 보완
+            const excelVal = excelMap.get(cellKey);
+            if (excelVal && excelVal > 0) yearData[y].months[m] = excelVal;
           }
+          yearData[y].total += yearData[y].months[m];
         }
       }
 
@@ -1100,15 +1135,19 @@ export function registerIpcHandlers(
         WHERE CAST(SUBSTR(issue_date, 1, 4) AS INTEGER) IN (?, ?)
       `).all(years[0], years[1]) as any[];
 
-      const excelAmounts = db.prepare(`
-        SELECT cost_item_id, year, month, amount
+      const savedAmounts = db.prepare(`
+        SELECT cost_item_id, year, month, amount, source
         FROM cost_item_amounts
         WHERE year IN (?, ?)
       `).all(years[0], years[1]) as any[];
 
+      // 수기편집(manual)은 XML 매칭 금액을 덮어쓰고, 엑셀 임포트(excel)는 XML이 없을 때만 채운다.
+      const manualMap = new Map<string, number>();
       const excelMap = new Map<string, number>();
-      for (const ea of excelAmounts) {
-        excelMap.set(`${ea.cost_item_id}-${ea.year}-${ea.month}`, ea.amount);
+      for (const ea of savedAmounts) {
+        const key = `${ea.cost_item_id}-${ea.year}-${ea.month}`;
+        if (ea.source === 'manual') manualMap.set(key, ea.amount);
+        else excelMap.set(key, ea.amount);
       }
 
       const exportItems = items.map((item: any) => {
@@ -1124,19 +1163,20 @@ export function registerIpcHandlers(
             const m = parseInt(inv.issue_date.slice(5, 7));
             if (yearData[y]) {
               yearData[y].months[m] += inv.supply_amount;
-              yearData[y].total += inv.supply_amount;
             }
           }
         }
         for (const y of years) {
           for (let m = 1; m <= 12; m++) {
-            if (yearData[y].months[m] === 0) {
-              const excelVal = excelMap.get(`${item.id}-${y}-${m}`);
-              if (excelVal && excelVal > 0) {
-                yearData[y].months[m] = excelVal;
-                yearData[y].total += excelVal;
-              }
+            const cellKey = `${item.id}-${y}-${m}`;
+            const manualVal = manualMap.get(cellKey);
+            if (manualVal !== undefined && manualVal > 0) {
+              yearData[y].months[m] = manualVal;
+            } else if (yearData[y].months[m] === 0) {
+              const excelVal = excelMap.get(cellKey);
+              if (excelVal && excelVal > 0) yearData[y].months[m] = excelVal;
             }
+            yearData[y].total += yearData[y].months[m];
           }
         }
         return { display_name: item.display_name, contract_period: item.contract_period, supplier: item.supplier, yearData };
